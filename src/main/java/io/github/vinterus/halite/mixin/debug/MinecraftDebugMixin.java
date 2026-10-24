@@ -91,6 +91,10 @@ public abstract class MinecraftDebugMixin {
             HaliteClientMod.logger().info("[debug] {} | {}", this.debugText, this.worldRenderer.getChunkDebugInfo());
         }
 
+        if (this.halite$frames == 200 && Boolean.getBoolean("halite.debug.openSettings")) {
+            this.setScreen(new io.github.vinterus.halite.client.gui.HaliteOptionsScreen(null));
+        }
+
         if (this.halite$frames % 300 == 0 && this.halite$frames <= 1800) {
             HaliteClientMod.logger().info("[debug] {}", Screenshot.take(Minecraft.getRunDirectory(), this.displayWidth, this.displayHeight));
         }

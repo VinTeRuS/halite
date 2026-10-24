@@ -18,6 +18,8 @@ import java.util.List;
  * mixins; everything else (sky, entities, clouds, ...) stays vanilla.
  */
 public class HaliteWorldRenderer {
+    private static HaliteWorldRenderer instance;
+
     private final Minecraft client;
 
     private World world;
@@ -26,6 +28,7 @@ public class HaliteWorldRenderer {
 
     public HaliteWorldRenderer(Minecraft client) {
         this.client = client;
+        instance = this;
 
         if (!GlCompat.isInitialized()) {
             GlCompat.init(HaliteClientMod.options().useVertexBufferObjects);
@@ -99,6 +102,17 @@ public class HaliteWorldRenderer {
         }
     }
 
+    /** The renderer of the running client, or null before the world renderer exists. */
+    public static HaliteWorldRenderer instance() {
+        return instance;
+    }
+
+    /** Frustum test against the last frame's camera; true when no frame has been culled yet. */
+    public boolean isPointVisible(double x, double y, double z, double radius) {
+        Viewport viewport = this.viewport;
+        return viewport == null || viewport.isBoxVisible(x - radius, y - radius, z - radius, x + radius, y + radius, z + radius);
+    }
+
     public boolean isEntityVisible(Box box) {
         if (this.sections == null || !HaliteClientMod.options().useEntityCulling) {
             return true;
@@ -106,8 +120,14 @@ public class HaliteWorldRenderer {
         return this.sections.isBoxVisible(box);
     }
 
-    public List<BlockEntity> getVisibleBlockEntities() {
-        return this.sections == null ? List.of() : this.sections.getVisibleBlockEntities();
+    /** Block entities to render this frame: those in visible sections, or all of them with culling off. */
+    public List<BlockEntity> getBlockEntitiesToRender() {
+        if (this.sections == null) {
+            return List.of();
+        }
+        return HaliteClientMod.options().useBlockEntityCulling
+                ? this.sections.getVisibleBlockEntities()
+                : this.sections.getAllBlockEntities();
     }
 
     public String getDebugString() {

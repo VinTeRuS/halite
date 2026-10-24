@@ -183,6 +183,13 @@ public class RenderSectionManager {
         return this.visibleBlockEntities;
     }
 
+    /** Block entities of every built section, regardless of visibility. */
+    public List<BlockEntity> getAllBlockEntities() {
+        List<BlockEntity> all = new ArrayList<>();
+        this.storage.forEach(section -> all.addAll(section.getBlockEntities()));
+        return all;
+    }
+
     public int getRenderedSectionCount(int pass) {
         return this.renderLists[pass].size();
     }

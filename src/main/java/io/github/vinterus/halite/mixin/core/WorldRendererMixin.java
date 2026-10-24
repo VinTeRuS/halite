@@ -5,8 +5,10 @@ import io.github.vinterus.halite.client.render.HaliteWorldRendererHolder;
 import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.render.Culler;
+import net.minecraft.client.render.OpenGlCapabilities;
 import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.texture.TextureManager;
+import net.minecraft.client.util.GlAllocationUtils;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.util.math.Box;
 import net.minecraft.world.World;
@@ -37,6 +39,23 @@ public abstract class WorldRendererMixin implements HaliteWorldRendererHolder {
     @Override
     public HaliteWorldRenderer halite$getRenderer() {
         return this.halite$renderer;
+    }
+
+    /**
+     * Vanilla reserves 64^3 * 3 display lists for its chunk renderers, which Halite never uses. Only the first
+     * three are touched (by vanilla code we cancel), so a small reservation keeps the ids valid.
+     */
+    @Redirect(method = "<init>", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/util/GlAllocationUtils;generateDisplayLists(I)I", ordinal = 1))
+    private int halite$skipChunkDisplayLists(int range) {
+        return GlAllocationUtils.generateDisplayLists(3);
+    }
+
+    /** Hardware occlusion queries are superseded by the visibility graph; skip allocating 64^3 query objects. */
+    @Redirect(method = "<init>", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/render/OpenGlCapabilities;glArbOcclusionQuery()Z"))
+    private boolean halite$disableOcclusionQueries(OpenGlCapabilities capabilities) {
+        return false;
     }
 
     @Inject(method = "<init>", at = @At("RETURN"))
@@ -79,9 +98,8 @@ public abstract class WorldRendererMixin implements HaliteWorldRendererHolder {
     private void halite$cullChunks(Culler culler, float tickDelta, CallbackInfo ci) {
         this.halite$renderer.updateVisibility(culler, tickDelta);
 
-        // only block entities in visible sections get rendered
         this.globalBlockEntities.clear();
-        this.globalBlockEntities.addAll(this.halite$renderer.getVisibleBlockEntities());
+        this.globalBlockEntities.addAll(this.halite$renderer.getBlockEntitiesToRender());
         ci.cancel();
     }
 

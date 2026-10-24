@@ -24,6 +24,7 @@ loom {
 			client()
 			vmArg("-Dhalite.debug.autoWorld=halite-test")
 			vmArg("-Dhalite.debug.spin=true")
+			vmArg("-Dhalite.debug.openSettings=" + (project.findProperty("openSettings") ?: "false"))
 		}
 	}
 }

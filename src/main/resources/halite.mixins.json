@@ -6,6 +6,8 @@
   "client": [
     "core.TessellatorMixin",
     "core.WorldRendererMixin",
+    "features.ParticleManagerMixin",
+    "features.VideoOptionsScreenMixin",
     "debug.MinecraftDebugMixin"
   ],
   "injectors": {

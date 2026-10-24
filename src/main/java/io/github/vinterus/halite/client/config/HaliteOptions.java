@@ -21,6 +21,7 @@ public class HaliteOptions {
     public boolean useEntityCulling = true;
     public boolean useBlockEntityCulling = true;
     public boolean useTranslucencySorting = true;
+    public boolean useParticleCulling = true;
     /** Buffer objects; disable to fall back to client-side vertex arrays on broken drivers. */
     public boolean useVertexBufferObjects = true;
     /** Milliseconds per frame spent rebuilding chunk meshes. */
@@ -44,6 +45,7 @@ public class HaliteOptions {
                 options.useEntityCulling = getBool(props, "useEntityCulling", options.useEntityCulling);
                 options.useBlockEntityCulling = getBool(props, "useBlockEntityCulling", options.useBlockEntityCulling);
                 options.useTranslucencySorting = getBool(props, "useTranslucencySorting", options.useTranslucencySorting);
+                options.useParticleCulling = getBool(props, "useParticleCulling", options.useParticleCulling);
                 options.useVertexBufferObjects = getBool(props, "useVertexBufferObjects", options.useVertexBufferObjects);
                 options.chunkBuildBudgetMs = getInt(props, "chunkBuildBudgetMs", options.chunkBuildBudgetMs, 1, 50);
             } catch (IOException | RuntimeException e) {
@@ -63,6 +65,7 @@ public class HaliteOptions {
         props.setProperty("useEntityCulling", Boolean.toString(this.useEntityCulling));
         props.setProperty("useBlockEntityCulling", Boolean.toString(this.useBlockEntityCulling));
         props.setProperty("useTranslucencySorting", Boolean.toString(this.useTranslucencySorting));
+        props.setProperty("useParticleCulling", Boolean.toString(this.useParticleCulling));
         props.setProperty("useVertexBufferObjects", Boolean.toString(this.useVertexBufferObjects));
         props.setProperty("chunkBuildBudgetMs", Integer.toString(this.chunkBuildBudgetMs));
 
