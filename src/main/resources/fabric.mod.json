@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "halite",
+  "version": "${version}",
+  "name": "Halite",
+  "description": "A Sodium-style rendering engine for Minecraft Beta 1.7.3 (StationAPI). Based on Sodium 0.5 (LGPLv3) by JellySquid & CaffeineMC; not affiliated with or endorsed by CaffeineMC.",
+  "authors": ["vinterus"],
+  "contributors": ["JellySquid (original Sodium)", "CaffeineMC contributors (original Sodium)"],
+  "contact": {
+    "sources": "https://github.com/vinterus/halite",
+    "issues": "https://github.com/vinterus/halite/issues"
+  },
+  "license": "LGPL-3.0-only",
+  "icon": "assets/halite/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["io.github.vinterus.halite.client.HaliteClientMod"]
+  },
+  "mixins": ["halite.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "1.0.0-beta.7.3",
+    "stationapi": "*"
+  }
+}
