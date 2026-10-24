@@ -31,6 +31,8 @@ public class RenderSectionManager {
     private int frame;
     private int visibleSections;
     private int builtThisFrame;
+    private long buildNanosTotal;
+    private long buildCountTotal;
     private Viewport lastViewport;
 
     public RenderSectionManager(World world) {
@@ -96,6 +98,7 @@ public class RenderSectionManager {
                 continue;
             }
 
+            long start = System.nanoTime();
             try {
                 this.compiler.compile(this.world, section);
             } catch (RuntimeException e) {
@@ -104,6 +107,8 @@ public class RenderSectionManager {
             }
 
             this.builtThisFrame++;
+            this.buildNanosTotal += System.nanoTime() - start;
+            this.buildCountTotal++;
             this.rebuildQueue.set(i, null);
 
             if (System.nanoTime() >= deadline) {
@@ -195,10 +200,11 @@ public class RenderSectionManager {
     }
 
     public String getDebugString() {
-        return String.format("C: %d/%d (%d visible) D: %d, B: %d, Q: %d",
+        double avgBuildMs = this.buildCountTotal == 0 ? 0.0 : this.buildNanosTotal / 1.0e6 / this.buildCountTotal;
+        return String.format("C: %d/%d (%d visible) D: %d, B: %d (%.2f ms avg), Q: %d",
                 this.renderLists[RenderSection.PASS_SOLID].size() + this.renderLists[RenderSection.PASS_TRANSLUCENT].size(),
                 this.storage.size(), this.visibleSections, this.renderer.getDrawCalls(), this.builtThisFrame,
-                this.rebuildQueue.size());
+                avgBuildMs, this.rebuildQueue.size());
     }
 
     public void destroy() {

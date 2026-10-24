@@ -22,6 +22,8 @@ public class ChunkMesh {
     // translucent meshes keep a CPU copy so they can be re-sorted back to front
     private final float[] quadCenters;
     private ByteBuffer sortSource;
+    private ByteBuffer sortTarget;
+    private long[] sortKeys;
     private float lastSortX = Float.NaN, lastSortY, lastSortZ;
 
     public ChunkMesh(ChunkMeshBuilder.BuiltMesh mesh) {
@@ -103,8 +105,13 @@ public class ChunkMesh {
             return;
         }
 
+        // far away sections barely change order as the camera moves, so they re-sort less often
+        float cx = camX - 8.0f, cy = camY - 8.0f, cz = camZ - 8.0f;
+        float distSq = cx * cx + cy * cy + cz * cz;
+        float threshold = Math.max(1.0f, distSq / (16.0f * 16.0f));
+
         float dx = camX - this.lastSortX, dy = camY - this.lastSortY, dz = camZ - this.lastSortZ;
-        if (!Float.isNaN(this.lastSortX) && dx * dx + dy * dy + dz * dz < 1.0f) {
+        if (!Float.isNaN(this.lastSortX) && dx * dx + dy * dy + dz * dz < threshold) {
             return;
         }
         this.lastSortX = camX;
@@ -112,7 +119,11 @@ public class ChunkMesh {
         this.lastSortZ = camZ;
 
         int n = this.quadCount;
-        long[] keys = new long[n];
+        if (this.sortKeys == null) {
+            this.sortKeys = new long[n];
+            this.sortTarget = ByteBuffer.allocateDirect(n * 4 * ChunkVertexFormat.STRIDE).order(ByteOrder.nativeOrder());
+        }
+        long[] keys = this.sortKeys;
         for (int i = 0; i < n; i++) {
             float x = this.quadCenters[i * 3] - camX;
             float y = this.quadCenters[i * 3 + 1] - camY;
@@ -124,7 +135,8 @@ public class ChunkMesh {
         java.util.Arrays.sort(keys);
 
         int quadBytes = 4 * ChunkVertexFormat.STRIDE;
-        ByteBuffer sorted = ByteBuffer.allocateDirect(n * quadBytes).order(ByteOrder.nativeOrder());
+        ByteBuffer sorted = this.sortTarget;
+        sorted.clear();
         ByteBuffer src = this.sortSource.duplicate().order(ByteOrder.nativeOrder());
 
         for (int i = 0; i < n; i++) {
@@ -145,5 +157,7 @@ public class ChunkMesh {
         }
         this.clientData = null;
         this.sortSource = null;
+        this.sortTarget = null;
+        this.sortKeys = null;
     }
 }

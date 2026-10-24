@@ -86,7 +86,8 @@ public class HaliteOptions {
             return this.renderDistance;
         }
         return switch (vanillaViewDistance) {
-            case 0 -> 12; // far
+            // matches vanilla's fog distance of 256 >> viewDistance blocks
+            case 0 -> 16; // far
             case 1 -> 8;  // normal
             case 2 -> 4;  // short
             default -> 2; // tiny

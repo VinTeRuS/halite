@@ -3,6 +3,7 @@ package io.github.vinterus.halite.client.render.chunk.compile;
 import io.github.vinterus.halite.client.render.chunk.ChunkMesh;
 import io.github.vinterus.halite.client.render.chunk.RenderSection;
 import io.github.vinterus.halite.client.render.chunk.occlusion.VisGraph;
+import io.github.vinterus.halite.client.render.chunk.occlusion.VisibilityEncoding;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.render.Tessellator;
@@ -35,6 +36,11 @@ public class ChunkSectionCompiler {
     public void compile(World world, RenderSection section) {
         int minX = section.getOriginX(), minY = section.getOriginY(), minZ = section.getOriginZ();
         int maxX = minX + 16, maxY = minY + 16, maxZ = minZ + 16;
+
+        if (SectionEmptinessCheck.isEmpty(world, section.getChunkX(), section.getChunkY(), section.getChunkZ())) {
+            section.setBuildResult(new ChunkMesh[RenderSection.PASS_COUNT], List.of(), VisibilityEncoding.ALL, false);
+            return;
+        }
 
         Chunk.hasSkyLight = false;
 
