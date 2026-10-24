@@ -9,20 +9,22 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
- * Halite's settings page, opened from the vanilla Video Settings screen.
+ * Halite's settings page, opened from the vanilla Video Settings screen. Numeric settings are sliders, and the
+ * setting under the pointer (or the last one touched, on touch screens) is explained below the grid.
  */
 public class HaliteOptionsScreen extends Screen {
     private static final int DONE_ID = 200;
 
-    private static final int[] RENDER_DISTANCES = {0, 2, 4, 6, 8, 10, 12, 16, 20, 24, 32};
-    private static final int[] BUILD_BUDGETS = {1, 2, 4, 8, 16};
+    private static final int[] RENDER_DISTANCES = {0, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20, 24, 28, 32};
+    private static final int[] BUILD_BUDGETS = {1, 2, 3, 4, 6, 8, 12, 16};
 
     private final Screen parent;
     private final List<Entry> entries = new ArrayList<>();
     private boolean needsReload;
+    private Entry described;
 
     public HaliteOptionsScreen(Screen parent) {
         this.parent = parent;
@@ -34,56 +36,65 @@ public class HaliteOptionsScreen extends Screen {
         HaliteOptions o = HaliteClientMod.options();
         this.entries.clear();
 
-        this.cycle("Render Distance", o.renderDistance, RENDER_DISTANCES, v -> o.renderDistance = v,
-                v -> v == 0 ? "Vanilla" : v + " chunks");
-        this.toggle("Occlusion Culling", o.useOcclusionCulling, v -> o.useOcclusionCulling = v);
-        this.toggle("Face Culling", o.useFaceCulling, v -> o.useFaceCulling = v);
-        this.toggle("Entity Culling", o.useEntityCulling, v -> o.useEntityCulling = v);
-        this.toggle("Block Entity Culling", o.useBlockEntityCulling, v -> o.useBlockEntityCulling = v);
-        this.toggle("Particle Culling", o.useParticleCulling, v -> o.useParticleCulling = v);
-        this.toggle("Fast Clouds", o.useCachedClouds, v -> o.useCachedClouds = v);
-        this.toggle("Translucency Sorting", o.useTranslucencySorting, v -> o.useTranslucencySorting = v);
-        this.cycle("Build Budget", o.chunkBuildBudgetMs, BUILD_BUDGETS, v -> o.chunkBuildBudgetMs = v,
-                v -> v + " ms");
+        int left = this.width / 2 - 155, right = this.width / 2 + 5;
+        int top = this.height / 6 - 12;
+
+        this.add(new HaliteSlider(0, left, top, 150, RENDER_DISTANCES, o.renderDistance,
+                v -> o.renderDistance = v, v -> "Render Distance: " + (v == 0 ? "Vanilla" : v + " chunks")),
+                "How far terrain is drawn, in chunks. Vanilla follows the Render Distance button. Large values cost memory and chunk loading time.");
+        this.add(new HaliteSlider(1, right, top, 150, BUILD_BUDGETS, o.chunkBuildBudgetMs,
+                v -> o.chunkBuildBudgetMs = v, v -> "Build Budget: " + v + " ms"),
+                "Time per frame the game thread spends on chunk updates. Higher loads chunks faster, lower keeps the frame rate steadier.");
+
+        this.toggle("Occlusion Culling", o.useOcclusionCulling, v -> o.useOcclusionCulling = v,
+                "Skips chunks hidden behind terrain, such as caves under your feet. The biggest frame rate win; turn off only to debug missing chunks.");
+        this.toggle("Face Culling", o.useFaceCulling, v -> o.useFaceCulling = v,
+                "Skips block faces pointing away from the camera before they reach the GPU.");
+        this.toggle("Entity Culling", o.useEntityCulling, v -> o.useEntityCulling = v,
+                "Skips mobs and items in chunks that are not visible.");
+        this.toggle("Block Entity Culling", o.useBlockEntityCulling, v -> o.useBlockEntityCulling = v,
+                "Skips chests, signs and other block entities in chunks that are not visible.");
+        this.toggle("Particle Culling", o.useParticleCulling, v -> o.useParticleCulling = v,
+                "Skips particles outside the view.");
+        this.toggle("Fast Clouds", o.useCachedClouds, v -> o.useCachedClouds = v,
+                "Draws fancy clouds from cached geometry instead of rebuilding them every frame. Looks the same.");
+        this.toggle("Translucency Sorting", o.useTranslucencySorting, v -> o.useTranslucencySorting = v,
+                "Sorts water back to front so overlapping water surfaces blend correctly.");
         this.toggle("Async Chunk Builds", o.useAsyncChunkBuilding, v -> {
             o.useAsyncChunkBuilding = v;
             this.needsReload = true;
-        });
-        this.toggle("VBOs (restart)", o.useVertexBufferObjects, v -> o.useVertexBufferObjects = v);
+        }, "Builds chunk meshes on background threads, which removes most stutter while chunks load. Turn off if a mod's blocks render wrong.");
+        this.toggle("VBOs", o.useVertexBufferObjects, v -> o.useVertexBufferObjects = v,
+                "Keeps chunk geometry in GPU memory. Turn off only if terrain is invisible or flickers on your device. Needs a restart.");
 
         for (int i = 0; i < this.entries.size(); i++) {
             Entry entry = this.entries.get(i);
-            entry.button = new ButtonWidget(i, this.width / 2 - 155 + i % 2 * 160, this.height / 6 - 12 + 24 * (i >> 1),
-                    150, 20, entry.label());
+            if (entry.button == null) {
+                // toggles fill the grid below the two sliders
+                int slot = i;
+                entry.button = new ButtonWidget(i, slot % 2 == 0 ? left : right, top + 24 * (slot / 2), 150, 20, entry.label.get());
+            }
             this.buttons.add(entry.button);
         }
 
-        this.buttons.add(new ButtonWidget(DONE_ID, this.width / 2 - 100, this.height / 6 + 168, "Done"));
+        this.buttons.add(new ButtonWidget(DONE_ID, this.width / 2 - 100, this.height - 28, "Done"));
     }
 
-    private void toggle(String name, boolean initial, Consumer<Boolean> setter) {
+    private void add(HaliteSlider slider, String description) {
+        Entry entry = new Entry(null, null, description);
+        entry.button = slider;
+        this.entries.add(entry);
+    }
+
+    private void toggle(String name, boolean initial, Consumer<Boolean> setter, String description) {
         boolean[] value = {initial};
         this.entries.add(new Entry(
                 () -> {
                     value[0] = !value[0];
                     setter.accept(value[0]);
                 },
-                () -> name + ": " + (value[0] ? "ON" : "OFF")));
-    }
-
-    private void cycle(String name, int initial, int[] values, Consumer<Integer> setter, Function<Integer, String> format) {
-        int[] index = {0};
-        for (int i = 0; i < values.length; i++) {
-            if (values[i] == initial) {
-                index[0] = i;
-            }
-        }
-        this.entries.add(new Entry(
-                () -> {
-                    index[0] = (index[0] + 1) % values.length;
-                    setter.accept(values[index[0]]);
-                },
-                () -> name + ": " + format.apply(values[index[0]])));
+                () -> name + ": " + (value[0] ? "ON" : "OFF"),
+                description));
     }
 
     @Override
@@ -103,33 +114,64 @@ public class HaliteOptionsScreen extends Screen {
 
         if (button.id >= 0 && button.id < this.entries.size()) {
             Entry entry = this.entries.get(button.id);
-            entry.action.run();
-            button.text = entry.label();
+            this.described = entry;
+            if (entry.action != null) {
+                entry.action.run();
+                button.text = entry.label.get();
+            }
         }
     }
 
     @Override
     public void render(int mouseX, int mouseY, float delta) {
         this.renderBackground();
-        this.drawCenteredTextWithShadow(this.textRenderer, "Halite Settings", this.width / 2, 15, 0xFFFFFF);
-        this.drawCenteredTextWithShadow(this.textRenderer,
-                "GL: " + GlCompat.getRenderer() + (GlCompat.useVbo() ? " (VBO)" : " (client arrays)"),
-                this.width / 2, this.height / 6 + 150, 0xA0A0A0);
+        this.drawCenteredTextWithShadow(this.textRenderer, "Halite Settings", this.width / 2, 8, 0xFFFFFF);
         super.render(mouseX, mouseY, delta);
+
+        for (Entry entry : this.entries) {
+            ButtonWidget b = entry.button;
+            if (mouseX >= b.x && mouseY >= b.y && mouseX < b.x + 150 && mouseY < b.y + 20) {
+                this.described = entry;
+            }
+        }
+
+        int textTop = this.height / 6 - 12 + 24 * ((this.entries.size() + 1) / 2) + 4;
+        if (this.described != null) {
+            this.drawWrapped(this.described.description, textTop, 0xE0E0E0);
+        } else {
+            this.drawWrapped("Tap or hover over a setting to see what it does. GPU: " + GlCompat.getRenderer()
+                    + (GlCompat.useVbo() ? " (VBO)" : " (client arrays)"), textTop, 0x909090);
+        }
+    }
+
+    private void drawWrapped(String text, int y, int color) {
+        int maxWidth = Math.min(310, this.width - 20);
+        StringBuilder line = new StringBuilder();
+        for (String word : text.split(" ")) {
+            String candidate = line.length() == 0 ? word : line + " " + word;
+            if (this.textRenderer.getWidth(candidate) > maxWidth && line.length() > 0) {
+                this.drawCenteredTextWithShadow(this.textRenderer, line.toString(), this.width / 2, y, color);
+                y += 10;
+                line = new StringBuilder(word);
+            } else {
+                line = new StringBuilder(candidate);
+            }
+        }
+        if (line.length() > 0) {
+            this.drawCenteredTextWithShadow(this.textRenderer, line.toString(), this.width / 2, y, color);
+        }
     }
 
     private static final class Entry {
         final Runnable action;
-        final java.util.function.Supplier<String> labeler;
+        final Supplier<String> label;
+        final String description;
         ButtonWidget button;
 
-        Entry(Runnable action, java.util.function.Supplier<String> labeler) {
+        Entry(Runnable action, Supplier<String> label, String description) {
             this.action = action;
-            this.labeler = labeler;
-        }
-
-        String label() {
-            return this.labeler.get();
+            this.label = label;
+            this.description = description;
         }
     }
 }
