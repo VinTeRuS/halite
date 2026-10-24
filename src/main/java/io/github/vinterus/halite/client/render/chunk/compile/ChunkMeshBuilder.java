@@ -18,6 +18,9 @@ public class ChunkMeshBuilder {
 
     private final GroupBuffer[] groups = new GroupBuffer[ModelQuadFacing.COUNT];
 
+    // section origin relative to the render region's center; vertices are stored region-relative
+    private float regionOffsetX, regionOffsetY, regionOffsetZ;
+
     /** Per-facing extreme plane coordinate, in section-local block units. */
     private final float[] planeBounds = new float[ModelQuadFacing.COUNT];
 
@@ -30,6 +33,13 @@ public class ChunkMeshBuilder {
             this.groups[i] = new GroupBuffer();
         }
         this.reset();
+    }
+
+    /** Sets where the section sits relative to its region's center, see {@code RenderRegion}. */
+    public void setRegionOffset(float x, float y, float z) {
+        this.regionOffsetX = x;
+        this.regionOffsetY = y;
+        this.regionOffsetZ = z;
     }
 
     public void reset() {
@@ -131,9 +141,9 @@ public class ChunkMeshBuilder {
         ByteBuffer buf = group.buffer;
 
         for (int i = 0; i < 4; i++) {
-            buf.putShort(ChunkVertexFormat.encodePosition(this.px[i]));
-            buf.putShort(ChunkVertexFormat.encodePosition(this.py[i]));
-            buf.putShort(ChunkVertexFormat.encodePosition(this.pz[i]));
+            buf.putShort(ChunkVertexFormat.encodePosition(this.px[i] + this.regionOffsetX));
+            buf.putShort(ChunkVertexFormat.encodePosition(this.py[i] + this.regionOffsetY));
+            buf.putShort(ChunkVertexFormat.encodePosition(this.pz[i] + this.regionOffsetZ));
             buf.putShort((short) 0);
             buf.putShort(ChunkVertexFormat.encodeTexture(this.tu[i]));
             buf.putShort(ChunkVertexFormat.encodeTexture(this.tv[i]));

@@ -92,4 +92,21 @@ public final class GlCompat {
             ARBVertexBufferObject.glBufferDataARB(target, data, usage);
         }
     }
+
+    /** Allocates uninitialised storage for the bound buffer. */
+    public static void bufferData(int target, long size, int usage) {
+        if (core15) {
+            GL15.glBufferData(target, size, usage);
+        } else {
+            ARBVertexBufferObject.glBufferDataARB(target, size, usage);
+        }
+    }
+
+    public static void bufferSubData(int target, long offset, ByteBuffer data) {
+        if (core15) {
+            GL15.glBufferSubData(target, offset, data);
+        } else {
+            ARBVertexBufferObject.glBufferSubDataARB(target, offset, data);
+        }
+    }
 }

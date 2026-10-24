@@ -168,7 +168,8 @@ public class RenderSection {
         this.dirty = version != this.version;
     }
 
-    private void deleteMeshes() {
+    /** Frees the current meshes ahead of uploading new ones, so the new data can reuse their space. */
+    public void deleteMeshes() {
         for (int i = 0; i < PASS_COUNT; i++) {
             if (this.meshes[i] != null) {
                 this.meshes[i].delete();

@@ -1,6 +1,7 @@
 package io.github.vinterus.halite.client.render.chunk.compile;
 
 import io.github.vinterus.halite.client.render.chunk.RenderSection;
+import io.github.vinterus.halite.client.render.chunk.RenderSectionManager;
 import io.github.vinterus.halite.client.render.chunk.occlusion.VisGraph;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import net.minecraft.block.entity.BlockEntity;
@@ -43,6 +44,7 @@ public final class ChunkBuildTask {
         for (int i = 0; i < this.builders.length; i++) {
             this.builders[i] = new ChunkMeshBuilder();
         }
+        RenderSectionManager.setRegionOffset(this.builders, this.section);
 
         VisGraph visGraph = new VisGraph();
         ChunkSectionCompiler.meshSection(this.slice,

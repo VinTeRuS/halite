@@ -10,6 +10,8 @@ import io.github.vinterus.halite.client.render.chunk.compile.ChunkSectionCompile
 import io.github.vinterus.halite.client.render.chunk.compile.SectionEmptinessCheck;
 import io.github.vinterus.halite.client.render.chunk.compile.WorldSlice;
 import io.github.vinterus.halite.client.render.chunk.occlusion.OcclusionCuller;
+import io.github.vinterus.halite.client.render.chunk.region.RenderRegion;
+import io.github.vinterus.halite.client.render.chunk.region.RenderRegionManager;
 import io.github.vinterus.halite.client.render.chunk.occlusion.VisGraph;
 import io.github.vinterus.halite.client.render.chunk.occlusion.VisibilityEncoding;
 import io.github.vinterus.halite.client.render.viewport.Viewport;
@@ -34,6 +36,7 @@ public class RenderSectionManager {
     private final ChunkMeshBuilder[] syncBuilders = {new ChunkMeshBuilder(), new ChunkMeshBuilder()};
     private final VisGraph syncVisGraph = new VisGraph();
     private final ChunkRenderer renderer = new ChunkRenderer();
+    private final RenderRegionManager regions = new RenderRegionManager();
 
     @SuppressWarnings("unchecked")
     private final List<RenderSection>[] renderLists = new List[RenderSection.PASS_COUNT];
@@ -188,7 +191,7 @@ public class RenderSectionManager {
             this.compileSync(section);
         } else {
             task.finishOnRenderThread();
-            section.setBuildResult(upload(task.getBuilders()), task.getBlockEntities(), task.getVisibilityData(),
+            section.setBuildResult(this.upload(task.getBuilders(), section), task.getBlockEntities(), task.getVisibilityData(),
                     task.usesSkyLight(), task.getVersion());
         }
         this.builtThisFrame++;
@@ -206,13 +209,14 @@ public class RenderSectionManager {
             for (ChunkMeshBuilder builder : this.syncBuilders) {
                 builder.reset();
             }
+            setRegionOffset(this.syncBuilders, section);
             this.syncVisGraph.reset();
             List<BlockEntity> blockEntities = new ArrayList<>();
 
             ChunkSectionCompiler.meshSection(region, minX, minY, minZ, this.world.getBottomY(), this.world.getTopY(),
                     Tessellator.INSTANCE, this.syncBuilders, this.syncVisGraph, blockEntities, null, null);
 
-            section.setBuildResult(upload(this.syncBuilders), blockEntities, this.syncVisGraph.resolve(),
+            section.setBuildResult(this.upload(this.syncBuilders, section), blockEntities, this.syncVisGraph.resolve(),
                     Chunk.hasSkyLight, version);
         } catch (RuntimeException e) {
             HaliteClientMod.logger().error("Failed to build {}", section, e);
@@ -221,15 +225,24 @@ public class RenderSectionManager {
         }
     }
 
-    private static ChunkMesh[] upload(ChunkMeshBuilder[] builders) {
+    private ChunkMesh[] upload(ChunkMeshBuilder[] builders, RenderSection section) {
+        section.deleteMeshes();
         ChunkMesh[] meshes = new ChunkMesh[RenderSection.PASS_COUNT];
         for (int pass = 0; pass < RenderSection.PASS_COUNT; pass++) {
             ChunkMeshBuilder.BuiltMesh built = builders[pass].build(pass == RenderSection.PASS_TRANSLUCENT);
             if (built != null) {
-                meshes[pass] = new ChunkMesh(built);
+                meshes[pass] = new ChunkMesh(built, this.regions, this.regions.getOrCreate(section), pass, section);
             }
         }
         return meshes;
+    }
+
+    /** Vertices are stored relative to the section's render region, see {@link RenderRegion}. */
+    public static void setRegionOffset(ChunkMeshBuilder[] builders, RenderSection section) {
+        for (ChunkMeshBuilder builder : builders) {
+            builder.setRegionOffset(RenderRegion.sectionOffsetX(section.getChunkX()),
+                    RenderRegion.sectionOffsetY(section.getChunkY()), RenderRegion.sectionOffsetZ(section.getChunkZ()));
+        }
     }
 
     private void recordMainThreadTime(long start) {
@@ -323,14 +336,16 @@ public class RenderSectionManager {
 
     public String getDebugString() {
         double avgBuildMs = this.buildCountTotal == 0 ? 0.0 : this.buildNanosTotal / 1.0e6 / this.buildCountTotal;
-        return String.format("C: %d/%d (%d visible) D: %d, B: %d (%.2f ms main), Q: %d, W: %d",
+        return String.format("C: %d/%d (%d visible) D: %d, B: %d (%.2f ms main), Q: %d, W: %d, M: %.1f/%.1f MB in %d pages",
                 this.renderLists[RenderSection.PASS_SOLID].size() + this.renderLists[RenderSection.PASS_TRANSLUCENT].size(),
                 this.storage.size(), this.visibleSections, this.renderer.getDrawCalls(), this.builtThisFrame,
-                avgBuildMs, this.rebuildQueue.size(), this.inFlight);
+                avgBuildMs, this.rebuildQueue.size(), this.inFlight, ChunkMesh.getTotalBytes() / 1048576.0,
+                this.regions.getAllocatedBytes() / 1048576.0, this.regions.getPageCount());
     }
 
     public void destroy() {
         this.storage.clear();
+        this.regions.delete();
         this.renderer.delete();
         for (List<RenderSection> list : this.renderLists) {
             list.clear();

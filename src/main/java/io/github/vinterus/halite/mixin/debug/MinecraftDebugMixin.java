@@ -118,7 +118,7 @@ public abstract class MinecraftDebugMixin {
         if (Boolean.getBoolean("halite.debug.shotWhenIdle")) {
             HaliteWorldRenderer renderer = HaliteWorldRenderer.instance();
             this.halite$idleFrames = renderer != null && renderer.isIdle() && this.halite$frames > 100 ? this.halite$idleFrames + 1 : 0;
-            if (this.halite$idleFrames == 60) {
+            if (this.halite$idleFrames == 20) {
                 HaliteClientMod.logger().info("[debug] idle: {}", Screenshot.take(Minecraft.getRunDirectory(), this.displayWidth, this.displayHeight));
                 this.scheduleStop();
             }
