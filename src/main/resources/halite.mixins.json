@@ -8,6 +8,7 @@
     "core.TessellatorInvoker",
     "core.WorldRendererMixin",
     "features.GameRendererMixin",
+    "features.TextureManagerMixin",
     "features.ParticleManagerMixin",
     "features.VideoOptionsScreenMixin",
     "debug.MinecraftDebugMixin"

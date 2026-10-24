@@ -34,6 +34,7 @@ public class ChunkMesh {
     private final float[] planeBounds;
     private MeshPart[] parts;
     private final int originX, originY, originZ;
+    private final int animatedMask;
 
     // translucent meshes keep a CPU copy so they can be re-sorted back to front
     private final float[] quadCenters;
@@ -54,6 +55,7 @@ public class ChunkMesh {
         this.groupCount = mesh.groupCount();
         this.planeBounds = mesh.planeBounds();
         this.quadCenters = mesh.quadCenters();
+        this.animatedMask = mesh.animatedMask();
 
         if (this.quadCenters != null) {
             this.sortSource = mesh.vertexData();
@@ -79,6 +81,11 @@ public class ChunkMesh {
 
     public int getOriginZ() {
         return this.originZ;
+    }
+
+    /** Bits of the animated sprites this mesh uses, see {@link io.github.vinterus.halite.client.render.texture.AnimatedSprites}. */
+    public int getAnimatedMask() {
+        return this.animatedMask;
     }
 
     public MeshPart[] getParts() {

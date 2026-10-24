@@ -2,6 +2,7 @@ package io.github.vinterus.halite.client.render.chunk.compile;
 
 import io.github.vinterus.halite.client.render.chunk.ChunkVertexFormat;
 import io.github.vinterus.halite.client.render.chunk.ModelQuadFacing;
+import io.github.vinterus.halite.client.render.texture.AnimatedSprites;
 import org.lwjgl.opengl.GL11;
 
 import java.nio.ByteBuffer;
@@ -20,6 +21,10 @@ public class ChunkMeshBuilder {
 
     // section origin relative to the render region's center; vertices are stored region-relative
     private float regionOffsetX, regionOffsetY, regionOffsetZ;
+
+    // animated sprites to look for, and the ones found
+    private AnimatedSprites.Tracked[] animatedSprites = new AnimatedSprites.Tracked[0];
+    private int animatedMask;
 
     /** Per-facing extreme plane coordinate, in section-local block units. */
     private final float[] planeBounds = new float[ModelQuadFacing.COUNT];
@@ -42,7 +47,12 @@ public class ChunkMeshBuilder {
         this.regionOffsetZ = z;
     }
 
+    public void setAnimatedSprites(AnimatedSprites.Tracked[] sprites) {
+        this.animatedSprites = sprites;
+    }
+
     public void reset() {
+        this.animatedMask = 0;
         for (GroupBuffer group : this.groups) {
             group.reset();
         }
@@ -136,6 +146,12 @@ public class ChunkMeshBuilder {
             }
         }
 
+        if (this.animatedSprites.length > 0) {
+            this.animatedMask |= AnimatedSprites.maskFor(this.animatedSprites,
+                    (this.tu[0] + this.tu[1] + this.tu[2] + this.tu[3]) * 0.25f,
+                    (this.tv[0] + this.tv[1] + this.tv[2] + this.tv[3]) * 0.25f);
+        }
+
         GroupBuffer group = this.groups[facing];
         group.ensureCapacity(4 * ChunkVertexFormat.STRIDE);
         ByteBuffer buf = group.buffer;
@@ -193,11 +209,12 @@ public class ChunkMeshBuilder {
         }
         out.flip();
 
-        return new BuiltMesh(out, totalQuads, starts, counts, Arrays.copyOf(this.planeBounds, this.planeBounds.length), centers);
+        return new BuiltMesh(out, totalQuads, starts, counts, Arrays.copyOf(this.planeBounds, this.planeBounds.length), centers,
+                this.animatedMask);
     }
 
     public record BuiltMesh(ByteBuffer vertexData, int quadCount, int[] groupStart, int[] groupCount,
-                            float[] planeBounds, float[] quadCenters) {
+                            float[] planeBounds, float[] quadCenters, int animatedMask) {
     }
 
     private static final class GroupBuffer {

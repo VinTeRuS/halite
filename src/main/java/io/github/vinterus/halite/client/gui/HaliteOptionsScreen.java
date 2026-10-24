@@ -58,6 +58,8 @@ public class HaliteOptionsScreen extends Screen {
                 "Skips particles outside the view.");
         this.toggle("Fast Clouds", o.useCachedClouds, v -> o.useCachedClouds = v,
                 "Draws fancy clouds from cached geometry instead of rebuilding them every frame. Looks the same.");
+        this.toggle("Animate Visible Only", o.useAnimationCulling, v -> o.useAnimationCulling = v,
+                "Only animates water, lava, fire and portals that are on screen. Saves CPU time and texture uploads, a lot on phones.");
         this.toggle("Translucency Sorting", o.useTranslucencySorting, v -> o.useTranslucencySorting = v,
                 "Sorts water back to front so overlapping water surfaces blend correctly.");
         this.toggle("Async Chunk Builds", o.useAsyncChunkBuilding, v -> {

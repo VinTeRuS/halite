@@ -12,6 +12,7 @@ import io.github.vinterus.halite.client.render.chunk.compile.WorldSlice;
 import io.github.vinterus.halite.client.render.chunk.occlusion.OcclusionCuller;
 import io.github.vinterus.halite.client.render.chunk.region.RenderRegion;
 import io.github.vinterus.halite.client.render.chunk.region.RenderRegionManager;
+import io.github.vinterus.halite.client.render.texture.AnimatedSprites;
 import io.github.vinterus.halite.client.render.chunk.occlusion.VisGraph;
 import io.github.vinterus.halite.client.render.chunk.occlusion.VisibilityEncoding;
 import io.github.vinterus.halite.client.render.viewport.Viewport;
@@ -49,6 +50,7 @@ public class RenderSectionManager {
     private long buildNanosTotal;
     private long buildCountTotal;
     private int inFlight;
+    private int visibleAnimatedMask;
     private int reportedWorkerErrors;
     private Viewport lastViewport;
 
@@ -74,6 +76,7 @@ public class RenderSectionManager {
         this.rebuildQueue.clear();
         this.visibleBlockEntities.clear();
         this.visibleSections = 0;
+        this.visibleAnimatedMask = 0;
 
         final int frame = this.frame;
         this.culler.findVisible((section, visible) -> {
@@ -95,8 +98,16 @@ public class RenderSectionManager {
             }
 
             this.visibleBlockEntities.addAll(section.getBlockEntities());
+            for (int pass = 0; pass < RenderSection.PASS_COUNT; pass++) {
+                ChunkMesh mesh = section.getMesh(pass);
+                if (mesh != null) {
+                    this.visibleAnimatedMask |= mesh.getAnimatedMask();
+                }
+            }
         }, viewport, renderDistance * 16.0f, options.useOcclusionCulling, frame,
                 this.world.getBottomSectionCoord(), this.world.getTopSectionCoord());
+
+        AnimatedSprites.setVisibleMask(this.visibleAnimatedMask);
     }
 
     /**
@@ -237,9 +248,14 @@ public class RenderSectionManager {
         return meshes;
     }
 
-    /** Vertices are stored relative to the section's render region, see {@link RenderRegion}. */
+    /**
+     * Prepares builders for a section: vertices are stored relative to the section's render region (see
+     * {@link RenderRegion}), and animated sprites are looked for.
+     */
     public static void setRegionOffset(ChunkMeshBuilder[] builders, RenderSection section) {
+        AnimatedSprites.Tracked[] animated = AnimatedSprites.current();
         for (ChunkMeshBuilder builder : builders) {
+            builder.setAnimatedSprites(animated);
             builder.setRegionOffset(RenderRegion.sectionOffsetX(section.getChunkX()),
                     RenderRegion.sectionOffsetY(section.getChunkY()), RenderRegion.sectionOffsetZ(section.getChunkZ()));
         }
@@ -336,11 +352,11 @@ public class RenderSectionManager {
 
     public String getDebugString() {
         double avgBuildMs = this.buildCountTotal == 0 ? 0.0 : this.buildNanosTotal / 1.0e6 / this.buildCountTotal;
-        return String.format("C: %d/%d (%d visible) D: %d, B: %d (%.2f ms main), Q: %d, W: %d, M: %.1f/%.1f MB in %d pages",
+        return String.format("C: %d/%d (%d visible) D: %d, B: %d (%.2f ms main), Q: %d, W: %d, M: %.1f/%.1f MB in %d pages, A: %s",
                 this.renderLists[RenderSection.PASS_SOLID].size() + this.renderLists[RenderSection.PASS_TRANSLUCENT].size(),
                 this.storage.size(), this.visibleSections, this.renderer.getDrawCalls(), this.builtThisFrame,
                 avgBuildMs, this.rebuildQueue.size(), this.inFlight, ChunkMesh.getTotalBytes() / 1048576.0,
-                this.regions.getAllocatedBytes() / 1048576.0, this.regions.getPageCount());
+                this.regions.getAllocatedBytes() / 1048576.0, this.regions.getPageCount(), AnimatedSprites.describe());
     }
 
     public void destroy() {

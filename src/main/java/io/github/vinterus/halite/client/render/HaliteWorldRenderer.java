@@ -5,6 +5,8 @@ import io.github.vinterus.halite.client.gl.GlCompat;
 import io.github.vinterus.halite.client.config.HaliteOptions;
 import io.github.vinterus.halite.client.render.chunk.RenderSectionManager;
 import io.github.vinterus.halite.client.render.chunk.compile.ChunkBuilder;
+import io.github.vinterus.halite.client.render.texture.AnimatedSprites;
+import net.minecraft.entity.Entity;
 import io.github.vinterus.halite.client.render.viewport.Viewport;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.Minecraft;
@@ -83,7 +85,21 @@ public class HaliteWorldRenderer {
 
         this.viewport = new Viewport(culler, x, y, z);
         this.sections.update(this.viewport, this.getRenderDistance());
+
+        // burning entities show the fire texture outside of any chunk mesh
+        if (++this.frameCounter % 10 == 0) {
+            boolean onFire = false;
+            for (Object entity : this.world.entities) {
+                if (((Entity) entity).isOnFire()) {
+                    onFire = true;
+                    break;
+                }
+            }
+            AnimatedSprites.setEntitiesOnFire(onFire);
+        }
     }
+
+    private int frameCounter;
 
     public boolean buildChunks() {
         if (this.sections == null) {

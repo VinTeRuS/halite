@@ -9,6 +9,8 @@ entity list) with the architecture popularised by Sodium:
   search only walks outwards from the camera through faces that are actually connected.
 - **Compact vertex buffers.** Chunk meshes use 16-byte vertices (half of vanilla's) in VBOs, drawn with a
   shared quad index buffer.
+- **Render regions.** Sections of an 8x4x8 area share vertex buffers and a coordinate frame, and sections stored
+  next to each other are drawn with one call: about 6x fewer draw calls, which matters most on mobile drivers.
 - **Face culling.** Geometry is grouped by facing; groups that face away from the camera are not submitted.
 - **Translucency sorting.** Water and other translucent geometry is sorted back to front per section.
 - **Entity, block entity and particle culling.** Only things in visible sections, or inside the view
@@ -19,6 +21,8 @@ entity list) with the architecture popularised by Sodium:
   shared block bounds: stairs, fences, snow layers, doors, pistons, ...; and custom StationAPI world renderers)
   are finished on the render thread, so the result is identical to vanilla meshing.
 - **Cached fancy clouds**: drawn from display lists instead of being re-tessellated every frame.
+- **Animate visible textures only.** Water, lava, fire and portal animations are only simulated and uploaded
+  while something on screen uses them.
 - **Lower memory and startup cost**: the 786k display lists and 262k occlusion queries vanilla reserves at
   startup are skipped.
 
@@ -44,6 +48,7 @@ entity list) with the architecture popularised by Sodium:
 | Entity / Block Entity / Particle Culling | ON | |
 | Translucency Sorting | ON | |
 | Fast Clouds | ON | Cached fancy clouds |
+| Animate Visible Only | ON | Freezes water/lava/fire/portal animations that are off screen |
 | Async Chunk Builds | ON | Off = mesh on the render thread only. Thread count: `chunkBuilderThreads` in the config file (0 = auto) |
 | Build Budget | 4 ms | Render-thread time per frame for snapshotting/uploading (or meshing, with async off) |
 | VBOs | ON | Requires a restart |
