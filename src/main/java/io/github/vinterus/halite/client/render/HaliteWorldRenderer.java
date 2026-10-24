@@ -2,7 +2,9 @@ package io.github.vinterus.halite.client.render;
 
 import io.github.vinterus.halite.client.HaliteClientMod;
 import io.github.vinterus.halite.client.gl.GlCompat;
+import io.github.vinterus.halite.client.config.HaliteOptions;
 import io.github.vinterus.halite.client.render.chunk.RenderSectionManager;
+import io.github.vinterus.halite.client.render.chunk.compile.ChunkBuilder;
 import io.github.vinterus.halite.client.render.viewport.Viewport;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.Minecraft;
@@ -24,6 +26,8 @@ public class HaliteWorldRenderer {
 
     private World world;
     private RenderSectionManager sections;
+    private ChunkBuilder chunkBuilder;
+    private int chunkBuilderThreads;
     private Viewport viewport;
 
     public HaliteWorldRenderer(Minecraft client) {
@@ -44,7 +48,13 @@ public class HaliteWorldRenderer {
         this.world = world;
         this.viewport = null;
 
+        if (this.chunkBuilder != null) {
+            // queued snapshots belong to the old sections
+            this.chunkBuilder.drainPending();
+        }
+
         if (world != null) {
+            this.updateChunkBuilder();
             this.sections = new RenderSectionManager(world);
         }
     }
@@ -80,7 +90,32 @@ public class HaliteWorldRenderer {
             return true;
         }
         long budget = HaliteClientMod.options().chunkBuildBudgetMs * 1_000_000L;
-        return this.sections.buildChunks(budget);
+        return this.sections.buildChunks(budget, this.chunkBuilder);
+    }
+
+    /** Starts or stops the worker pool to match the options. Only called while no world is loaded. */
+    private void updateChunkBuilder() {
+        HaliteOptions options = HaliteClientMod.options();
+        int wanted = !options.useAsyncChunkBuilding ? 0
+                : options.chunkBuilderThreads > 0 ? options.chunkBuilderThreads : ChunkBuilder.defaultThreadCount();
+
+        if (wanted == this.chunkBuilderThreads && (wanted == 0 || this.chunkBuilder != null)) {
+            return;
+        }
+
+        if (this.chunkBuilder != null) {
+            this.chunkBuilder.shutdown();
+            this.chunkBuilder = null;
+        }
+
+        this.chunkBuilderThreads = wanted;
+        if (wanted > 0) {
+            this.chunkBuilder = ChunkBuilder.create(wanted);
+        }
+    }
+
+    public String getChunkBuilderDescription() {
+        return this.chunkBuilder == null ? "render thread" : this.chunkBuilder.getThreadCount() + " thread(s)";
     }
 
     public int renderLayer(int layer) {
@@ -128,6 +163,10 @@ public class HaliteWorldRenderer {
         return HaliteClientMod.options().useBlockEntityCulling
                 ? this.sections.getVisibleBlockEntities()
                 : this.sections.getAllBlockEntities();
+    }
+
+    public boolean isIdle() {
+        return this.sections == null || this.sections.isIdle();
     }
 
     public String getDebugString() {

@@ -1,5 +1,7 @@
 package io.github.vinterus.halite.mixin.core;
 
+import io.github.vinterus.halite.client.HaliteClientMod;
+import io.github.vinterus.halite.client.render.CloudRenderer;
 import io.github.vinterus.halite.client.render.HaliteWorldRenderer;
 import io.github.vinterus.halite.client.render.HaliteWorldRendererHolder;
 import net.minecraft.block.Block;
@@ -11,6 +13,8 @@ import net.minecraft.client.texture.TextureManager;
 import net.minecraft.client.util.GlAllocationUtils;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Vec3d;
+import org.lwjgl.opengl.GL11;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -32,6 +36,12 @@ public abstract class WorldRendererMixin implements HaliteWorldRendererHolder {
     @Shadow public List globalBlockEntities;
     @Shadow private int lastViewDistance;
     @Shadow private int entityRenderCooldown;
+    @Shadow private World world;
+    @Shadow private TextureManager textureManager;
+    @Shadow private int ticks;
+
+    @Unique
+    private final CloudRenderer halite$clouds = new CloudRenderer();
 
     @Unique
     private HaliteWorldRenderer halite$renderer;
@@ -129,6 +139,43 @@ public abstract class WorldRendererMixin implements HaliteWorldRendererHolder {
     @Inject(method = "getChunkDebugInfo", at = @At("HEAD"), cancellable = true)
     private void halite$debugInfo(CallbackInfoReturnable<String> cir) {
         cir.setReturnValue(this.halite$renderer.getDebugString());
+    }
+
+    @Inject(method = "renderFancyClouds", at = @At("HEAD"), cancellable = true)
+    private void halite$renderClouds(float tickDelta, CallbackInfo ci) {
+        if (!HaliteClientMod.options().useCachedClouds) {
+            return;
+        }
+
+        LivingEntity camera = this.client.camera;
+        float cameraY = (float) (camera.lastTickY + (camera.y - camera.lastTickY) * tickDelta);
+        double cameraX = camera.prevX + (camera.x - camera.prevX) * tickDelta;
+        double cameraZ = camera.prevZ + (camera.z - camera.prevZ) * tickDelta;
+
+        Vec3d color = this.world.getCloudColor(tickDelta);
+        float red = (float) color.x, green = (float) color.y, blue = (float) color.z;
+        boolean anaglyph = this.client.options.anaglyph3d;
+        if (anaglyph) {
+            float r = (red * 30.0F + green * 59.0F + blue * 11.0F) / 100.0F;
+            float g = (red * 30.0F + green * 70.0F) / 100.0F;
+            float b = (red * 30.0F + blue * 70.0F) / 100.0F;
+            red = r;
+            green = g;
+            blue = b;
+        }
+
+        GL11.glDisable(GL11.GL_CULL_FACE);
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, this.textureManager.getTextureId("/environment/clouds.png"));
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+
+        this.halite$clouds.render(cameraX, cameraZ, this.world.dimension.getCloudHeight() - cameraY + 0.33F,
+                this.ticks, tickDelta, red, green, blue, anaglyph);
+
+        GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+        GL11.glDisable(GL11.GL_BLEND);
+        GL11.glEnable(GL11.GL_CULL_FACE);
+        ci.cancel();
     }
 
     @Redirect(method = "renderEntities", at = @At(value = "INVOKE",

@@ -5,6 +5,7 @@
   "compatibilityLevel": "JAVA_17",
   "client": [
     "core.TessellatorMixin",
+    "core.TessellatorInvoker",
     "core.WorldRendererMixin",
     "features.GameRendererMixin",
     "features.ParticleManagerMixin",

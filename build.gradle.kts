@@ -23,7 +23,9 @@ loom {
 		register("autoWorldClient") {
 			client()
 			vmArg("-Dhalite.debug.autoWorld=halite-test")
-			vmArg("-Dhalite.debug.spin=true")
+			vmArg("-Dhalite.debug.spin=" + (project.findProperty("spin") ?: "true"))
+			vmArg("-Dhalite.debug.shotWhenIdle=" + (project.findProperty("shotWhenIdle") ?: "false"))
+			project.findProperty("pin")?.let { vmArg("-Dhalite.debug.pin=$it") }
 			vmArg("-Dhalite.debug.openSettings=" + (project.findProperty("openSettings") ?: "false"))
 		}
 	}

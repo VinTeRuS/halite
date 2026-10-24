@@ -14,7 +14,11 @@ entity list) with the architecture popularised by Sodium:
 - **Entity, block entity and particle culling.** Only things in visible sections, or inside the view
   frustum, get rendered.
 - **Configurable render distance** (2–32 chunks), with fog that follows it.
-- **Frame-budgeted chunk rebuilds**, nearest visible sections first.
+- **Multi-threaded chunk building.** Sections are snapshotted on the render thread and meshed on worker
+  threads, nearest visible first. Blocks whose renderers aren't thread-safe in Beta (anything that rewrites the
+  shared block bounds: stairs, fences, snow layers, doors, pistons, ...; and custom StationAPI world renderers)
+  are finished on the render thread, so the result is identical to vanilla meshing.
+- **Cached fancy clouds**: drawn from display lists instead of being re-tessellated every frame.
 - **Lower memory and startup cost**: the 786k display lists and 262k occlusion queries vanilla reserves at
   startup are skipped.
 
@@ -39,7 +43,9 @@ entity list) with the architecture popularised by Sodium:
 | Face Culling | ON | |
 | Entity / Block Entity / Particle Culling | ON | |
 | Translucency Sorting | ON | |
-| Build Budget | 4 ms | Time per frame spent rebuilding chunk meshes |
+| Fast Clouds | ON | Cached fancy clouds |
+| Async Chunk Builds | ON | Off = mesh on the render thread only. Thread count: `chunkBuilderThreads` in the config file (0 = auto) |
+| Build Budget | 4 ms | Render-thread time per frame for snapshotting/uploading (or meshing, with async off) |
 | VBOs | ON | Requires a restart |
 
 ## Building

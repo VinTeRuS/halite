@@ -25,6 +25,11 @@ public class RenderSection {
     private boolean dirty = true;
     private boolean usesSkyLight;
 
+    // bumped on every change so builds started before the change don't mark the section clean
+    private int version;
+    private boolean building;
+    private boolean deleted;
+
     // graph search state, see OcclusionCuller
     private final RenderSection[] adjacent = new RenderSection[GraphDirection.COUNT];
     private int searchFrame = -1;
@@ -87,6 +92,24 @@ public class RenderSection {
 
     public void markDirty() {
         this.dirty = true;
+        this.version++;
+    }
+
+    public int getVersion() {
+        return this.version;
+    }
+
+    /** Whether a rebuild of this section is in flight on a chunk builder thread. */
+    public boolean isBuilding() {
+        return this.building;
+    }
+
+    public void setBuilding(boolean building) {
+        this.building = building;
+    }
+
+    public boolean isDeleted() {
+        return this.deleted;
     }
 
     public boolean usesSkyLight() {
@@ -129,15 +152,20 @@ public class RenderSection {
         this.adjacent[direction] = section;
     }
 
-    /** Replaces the section's contents with a finished build. Takes ownership of the meshes. */
-    public void setBuildResult(ChunkMesh[] meshes, List<BlockEntity> blockEntities, long visibilityData, boolean usesSkyLight) {
+    /**
+     * Replaces the section's contents with a finished build. Takes ownership of the meshes.
+     *
+     * @param version the section version the build started from; if the section changed since, it stays dirty
+     */
+    public void setBuildResult(ChunkMesh[] meshes, List<BlockEntity> blockEntities, long visibilityData,
+                               boolean usesSkyLight, int version) {
         this.deleteMeshes();
         System.arraycopy(meshes, 0, this.meshes, 0, PASS_COUNT);
         this.blockEntities = blockEntities.isEmpty() ? Collections.emptyList() : blockEntities;
         this.visibilityData = visibilityData;
         this.usesSkyLight = usesSkyLight;
         this.built = true;
-        this.dirty = false;
+        this.dirty = version != this.version;
     }
 
     private void deleteMeshes() {
@@ -150,6 +178,7 @@ public class RenderSection {
     }
 
     public void delete() {
+        this.deleted = true;
         this.deleteMeshes();
         this.blockEntities = Collections.emptyList();
         for (int dir = 0; dir < GraphDirection.COUNT; dir++) {

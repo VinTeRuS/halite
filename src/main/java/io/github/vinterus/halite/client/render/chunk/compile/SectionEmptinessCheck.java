@@ -10,13 +10,13 @@ import net.modificationstation.stationapi.impl.world.chunk.FlattenedChunk;
  * Detects all-air sections from StationAPI's flattened chunk storage so they can skip meshing entirely; most of a
  * world's sections are empty sky. Uses StationAPI internals, so any linkage problem simply disables the shortcut.
  */
-final class SectionEmptinessCheck {
+public final class SectionEmptinessCheck {
     private static boolean available = true;
 
     private SectionEmptinessCheck() {
     }
 
-    static boolean isEmpty(World world, int chunkX, int chunkY, int chunkZ) {
+    public static boolean isEmpty(World world, int chunkX, int chunkY, int chunkZ) {
         if (!available) {
             return false;
         }

@@ -22,6 +22,7 @@ public class HaliteOptionsScreen extends Screen {
 
     private final Screen parent;
     private final List<Entry> entries = new ArrayList<>();
+    private boolean needsReload;
 
     public HaliteOptionsScreen(Screen parent) {
         this.parent = parent;
@@ -40,9 +41,14 @@ public class HaliteOptionsScreen extends Screen {
         this.toggle("Entity Culling", o.useEntityCulling, v -> o.useEntityCulling = v);
         this.toggle("Block Entity Culling", o.useBlockEntityCulling, v -> o.useBlockEntityCulling = v);
         this.toggle("Particle Culling", o.useParticleCulling, v -> o.useParticleCulling = v);
+        this.toggle("Fast Clouds", o.useCachedClouds, v -> o.useCachedClouds = v);
         this.toggle("Translucency Sorting", o.useTranslucencySorting, v -> o.useTranslucencySorting = v);
         this.cycle("Build Budget", o.chunkBuildBudgetMs, BUILD_BUDGETS, v -> o.chunkBuildBudgetMs = v,
                 v -> v + " ms");
+        this.toggle("Async Chunk Builds", o.useAsyncChunkBuilding, v -> {
+            o.useAsyncChunkBuilding = v;
+            this.needsReload = true;
+        });
         this.toggle("VBOs (restart)", o.useVertexBufferObjects, v -> o.useVertexBufferObjects = v);
 
         for (int i = 0; i < this.entries.size(); i++) {
@@ -88,6 +94,9 @@ public class HaliteOptionsScreen extends Screen {
 
         if (button.id == DONE_ID) {
             HaliteClientMod.options().save();
+            if (this.needsReload && this.minecraft.worldRenderer != null && this.minecraft.world != null) {
+                this.minecraft.worldRenderer.reload();
+            }
             this.minecraft.setScreen(this.parent);
             return;
         }

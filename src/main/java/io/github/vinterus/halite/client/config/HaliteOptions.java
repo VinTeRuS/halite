@@ -22,8 +22,13 @@ public class HaliteOptions {
     public boolean useBlockEntityCulling = true;
     public boolean useTranslucencySorting = true;
     public boolean useParticleCulling = true;
+    public boolean useCachedClouds = true;
     /** Buffer objects; disable to fall back to client-side vertex arrays on broken drivers. */
     public boolean useVertexBufferObjects = true;
+    /** Build chunk meshes on background threads. */
+    public boolean useAsyncChunkBuilding = true;
+    /** Number of chunk builder threads; 0 picks a count from the CPU core count. */
+    public int chunkBuilderThreads = 0;
     /** Milliseconds per frame spent rebuilding chunk meshes. */
     public int chunkBuildBudgetMs = 4;
 
@@ -46,8 +51,11 @@ public class HaliteOptions {
                 options.useBlockEntityCulling = getBool(props, "useBlockEntityCulling", options.useBlockEntityCulling);
                 options.useTranslucencySorting = getBool(props, "useTranslucencySorting", options.useTranslucencySorting);
                 options.useParticleCulling = getBool(props, "useParticleCulling", options.useParticleCulling);
+                options.useCachedClouds = getBool(props, "useCachedClouds", options.useCachedClouds);
                 options.useVertexBufferObjects = getBool(props, "useVertexBufferObjects", options.useVertexBufferObjects);
                 options.chunkBuildBudgetMs = getInt(props, "chunkBuildBudgetMs", options.chunkBuildBudgetMs, 1, 50);
+                options.useAsyncChunkBuilding = getBool(props, "useAsyncChunkBuilding", options.useAsyncChunkBuilding);
+                options.chunkBuilderThreads = getInt(props, "chunkBuilderThreads", options.chunkBuilderThreads, 0, 16);
             } catch (IOException | RuntimeException e) {
                 HaliteClientMod.logger().warn("Could not read {}, using defaults", path, e);
             }
@@ -66,8 +74,11 @@ public class HaliteOptions {
         props.setProperty("useBlockEntityCulling", Boolean.toString(this.useBlockEntityCulling));
         props.setProperty("useTranslucencySorting", Boolean.toString(this.useTranslucencySorting));
         props.setProperty("useParticleCulling", Boolean.toString(this.useParticleCulling));
+        props.setProperty("useCachedClouds", Boolean.toString(this.useCachedClouds));
         props.setProperty("useVertexBufferObjects", Boolean.toString(this.useVertexBufferObjects));
         props.setProperty("chunkBuildBudgetMs", Integer.toString(this.chunkBuildBudgetMs));
+        props.setProperty("useAsyncChunkBuilding", Boolean.toString(this.useAsyncChunkBuilding));
+        props.setProperty("chunkBuilderThreads", Integer.toString(this.chunkBuilderThreads));
 
         Path path = path();
         try {

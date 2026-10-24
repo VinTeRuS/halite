@@ -2,12 +2,23 @@ package io.github.vinterus.halite.client.render.chunk;
 
 import io.github.vinterus.halite.client.HaliteClientMod;
 import io.github.vinterus.halite.client.config.HaliteOptions;
+import io.github.vinterus.halite.client.render.chunk.compile.BlockSafety;
+import io.github.vinterus.halite.client.render.chunk.compile.ChunkBuildTask;
+import io.github.vinterus.halite.client.render.chunk.compile.ChunkBuilder;
+import io.github.vinterus.halite.client.render.chunk.compile.ChunkMeshBuilder;
 import io.github.vinterus.halite.client.render.chunk.compile.ChunkSectionCompiler;
+import io.github.vinterus.halite.client.render.chunk.compile.SectionEmptinessCheck;
+import io.github.vinterus.halite.client.render.chunk.compile.WorldSlice;
 import io.github.vinterus.halite.client.render.chunk.occlusion.OcclusionCuller;
+import io.github.vinterus.halite.client.render.chunk.occlusion.VisGraph;
+import io.github.vinterus.halite.client.render.chunk.occlusion.VisibilityEncoding;
 import io.github.vinterus.halite.client.render.viewport.Viewport;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.client.render.Tessellator;
 import net.minecraft.util.math.Box;
 import net.minecraft.world.World;
+import net.minecraft.world.WorldRegion;
+import net.minecraft.world.chunk.Chunk;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,7 +31,8 @@ public class RenderSectionManager {
     private final World world;
     private final SectionStorage storage = new SectionStorage();
     private final OcclusionCuller culler = new OcclusionCuller(this.storage);
-    private final ChunkSectionCompiler compiler = new ChunkSectionCompiler();
+    private final ChunkMeshBuilder[] syncBuilders = {new ChunkMeshBuilder(), new ChunkMeshBuilder()};
+    private final VisGraph syncVisGraph = new VisGraph();
     private final ChunkRenderer renderer = new ChunkRenderer();
 
     @SuppressWarnings("unchecked")
@@ -33,6 +45,8 @@ public class RenderSectionManager {
     private int builtThisFrame;
     private long buildNanosTotal;
     private long buildCountTotal;
+    private int inFlight;
+    private int reportedWorkerErrors;
     private Viewport lastViewport;
 
     public RenderSectionManager(World world) {
@@ -83,41 +97,144 @@ public class RenderSectionManager {
     }
 
     /**
-     * Rebuilds dirty visible sections, nearest first (the search visits them in that order), until the time budget
-     * is used up.
+     * Rebuilds dirty visible sections, nearest first (the search visits them in that order). With a chunk builder,
+     * finished builds are collected and uploaded and new ones are snapshotted and handed to the workers; without
+     * one, sections are meshed right here. Both stop once the time budget is used up.
      *
      * @return whether every visible section is up to date
      */
-    public boolean buildChunks(long budgetNanos) {
+    public boolean buildChunks(long budgetNanos, ChunkBuilder builder) {
         long deadline = System.nanoTime() + budgetNanos;
         this.builtThisFrame = 0;
 
-        for (int i = 0; i < this.rebuildQueue.size(); i++) {
-            RenderSection section = this.rebuildQueue.get(i);
-            if (!section.isDirty() || this.storage.get(section.getChunkX(), section.getChunkY(), section.getChunkZ()) != section) {
-                continue;
-            }
-
-            long start = System.nanoTime();
-            try {
-                this.compiler.compile(this.world, section);
-            } catch (RuntimeException e) {
-                HaliteClientMod.logger().error("Failed to build {}", section, e);
-                section.setBuildResult(new ChunkMesh[RenderSection.PASS_COUNT], List.of(), section.getVisibilityData(), false);
-            }
-
-            this.builtThisFrame++;
-            this.buildNanosTotal += System.nanoTime() - start;
-            this.buildCountTotal++;
-            this.rebuildQueue.set(i, null);
-
-            if (System.nanoTime() >= deadline) {
-                break;
+        if (builder != null) {
+            ChunkBuildTask task;
+            while ((task = builder.pollCompleted()) != null) {
+                if (task.getOwner() != this) {
+                    continue;
+                }
+                this.inFlight--;
+                this.applyTask(task);
+                if (System.nanoTime() >= deadline) {
+                    break;
+                }
             }
         }
 
-        this.rebuildQueue.removeIf(s -> s == null || !s.isDirty());
-        return this.rebuildQueue.isEmpty();
+        boolean[] safeTable = builder != null ? BlockSafety.getSafeTable() : null;
+        int maxInFlight = builder != null ? builder.getThreadCount() * 3 : 0;
+
+        for (int i = 0; i < this.rebuildQueue.size(); i++) {
+            RenderSection section = this.rebuildQueue.get(i);
+            if (!section.isDirty() || section.isBuilding() || section.isDeleted()) {
+                continue;
+            }
+
+            // keep the workers fed even when the frame budget is spent
+            boolean overBudget = System.nanoTime() >= deadline;
+            if (overBudget && (builder == null || this.inFlight >= builder.getThreadCount())) {
+                break;
+            }
+            if (builder != null && this.inFlight >= maxInFlight) {
+                break;
+            }
+
+            long start = System.nanoTime();
+            if (this.tryBuildEmpty(section)) {
+                continue;
+            }
+
+            if (builder != null) {
+                WorldSlice slice = WorldSlice.create(this.world, section.getChunkX(), section.getChunkY(), section.getChunkZ());
+                builder.submit(new ChunkBuildTask(this, section, section.getVersion(), slice, safeTable,
+                        this.world.getBottomY(), this.world.getTopY()));
+                section.setBuilding(true);
+                this.inFlight++;
+            } else {
+                this.compileSync(section);
+                this.builtThisFrame++;
+            }
+            this.recordMainThreadTime(start);
+        }
+
+        this.rebuildQueue.removeIf(s -> !s.isDirty() || s.isDeleted());
+        return this.rebuildQueue.isEmpty() && this.inFlight == 0;
+    }
+
+    private boolean tryBuildEmpty(RenderSection section) {
+        if (!SectionEmptinessCheck.isEmpty(this.world, section.getChunkX(), section.getChunkY(), section.getChunkZ())) {
+            return false;
+        }
+        section.setBuildResult(new ChunkMesh[RenderSection.PASS_COUNT], List.of(), VisibilityEncoding.ALL, false,
+                section.getVersion());
+        return true;
+    }
+
+    private void applyTask(ChunkBuildTask task) {
+        RenderSection section = task.getSection();
+        section.setBuilding(false);
+
+        if (section.isDeleted()) {
+            return;
+        }
+
+        long start = System.nanoTime();
+        if (task.getError() != null) {
+            // most likely a modded block renderer that isn't safe off-thread; retry on the render thread
+            if (this.reportedWorkerErrors++ < 5) {
+                HaliteClientMod.logger().warn("Building {} on a worker thread failed, building on the render thread instead",
+                        section, task.getError());
+            }
+            this.compileSync(section);
+        } else {
+            task.finishOnRenderThread();
+            section.setBuildResult(upload(task.getBuilders()), task.getBlockEntities(), task.getVisibilityData(),
+                    task.usesSkyLight(), task.getVersion());
+        }
+        this.builtThisFrame++;
+        this.recordMainThreadTime(start);
+    }
+
+    private void compileSync(RenderSection section) {
+        int version = section.getVersion();
+        int minX = section.getOriginX(), minY = section.getOriginY(), minZ = section.getOriginZ();
+
+        try {
+            Chunk.hasSkyLight = false;
+            WorldRegion region = new WorldRegion(this.world, minX - 1, minY - 1, minZ - 1, minX + 17, minY + 17, minZ + 17);
+
+            for (ChunkMeshBuilder builder : this.syncBuilders) {
+                builder.reset();
+            }
+            this.syncVisGraph.reset();
+            List<BlockEntity> blockEntities = new ArrayList<>();
+
+            ChunkSectionCompiler.meshSection(region, minX, minY, minZ, this.world.getBottomY(), this.world.getTopY(),
+                    Tessellator.INSTANCE, this.syncBuilders, this.syncVisGraph, blockEntities, null, null);
+
+            section.setBuildResult(upload(this.syncBuilders), blockEntities, this.syncVisGraph.resolve(),
+                    Chunk.hasSkyLight, version);
+        } catch (RuntimeException e) {
+            HaliteClientMod.logger().error("Failed to build {}", section, e);
+            section.setBuildResult(new ChunkMesh[RenderSection.PASS_COUNT], List.of(), section.getVisibilityData(),
+                    false, version);
+        }
+    }
+
+    private static ChunkMesh[] upload(ChunkMeshBuilder[] builders) {
+        ChunkMesh[] meshes = new ChunkMesh[RenderSection.PASS_COUNT];
+        for (int pass = 0; pass < RenderSection.PASS_COUNT; pass++) {
+            ChunkMeshBuilder.BuiltMesh built = builders[pass].build(pass == RenderSection.PASS_TRANSLUCENT);
+            if (built != null) {
+                meshes[pass] = new ChunkMesh(built);
+            }
+        }
+        return meshes;
+    }
+
+    private void recordMainThreadTime(long start) {
+        this.buildNanosTotal += System.nanoTime() - start;
+        this.buildCountTotal++;
     }
 
     public int renderLayer(int pass, Viewport viewport) {
@@ -184,6 +301,11 @@ public class RenderSectionManager {
         return false;
     }
 
+    /** Whether nothing visible is waiting to be rebuilt. */
+    public boolean isIdle() {
+        return this.rebuildQueue.isEmpty() && this.inFlight == 0;
+    }
+
     public List<BlockEntity> getVisibleBlockEntities() {
         return this.visibleBlockEntities;
     }
@@ -201,10 +323,10 @@ public class RenderSectionManager {
 
     public String getDebugString() {
         double avgBuildMs = this.buildCountTotal == 0 ? 0.0 : this.buildNanosTotal / 1.0e6 / this.buildCountTotal;
-        return String.format("C: %d/%d (%d visible) D: %d, B: %d (%.2f ms avg), Q: %d",
+        return String.format("C: %d/%d (%d visible) D: %d, B: %d (%.2f ms main), Q: %d, W: %d",
                 this.renderLists[RenderSection.PASS_SOLID].size() + this.renderLists[RenderSection.PASS_TRANSLUCENT].size(),
                 this.storage.size(), this.visibleSections, this.renderer.getDrawCalls(), this.builtThisFrame,
-                avgBuildMs, this.rebuildQueue.size());
+                avgBuildMs, this.rebuildQueue.size(), this.inFlight);
     }
 
     public void destroy() {

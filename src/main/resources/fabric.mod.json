@@ -16,7 +16,7 @@
   "entrypoints": {
     "client": ["io.github.vinterus.halite.client.HaliteClientMod"]
   },
-  "mixins": ["halite.mixins.json"],
+  "mixins": ["halite.mixins.json", "halite.compat.mixins.json"],
   "depends": {
     "fabricloader": ">=0.16.0",
     "minecraft": "1.0.0-beta.7.3",

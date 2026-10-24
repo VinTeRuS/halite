@@ -4,6 +4,7 @@ import net.minecraft.client.InteractionManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import io.github.vinterus.halite.client.HaliteClientMod;
+import io.github.vinterus.halite.client.render.HaliteWorldRenderer;
 import net.minecraft.client.SingleplayerInteractionManager;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.TitleScreen;
@@ -50,6 +51,12 @@ public abstract class MinecraftDebugMixin {
     @Unique
     private long halite$lastReport;
 
+    @Unique
+    private int halite$idleFrames;
+
+    @Shadow
+    public abstract void scheduleStop();
+
     @Inject(method = "tick", at = @At("HEAD"))
     private void halite$autoWorld(CallbackInfo ci) {
         if (halite$AUTO_WORLD == null || this.halite$autoWorldStarted) {
@@ -80,6 +87,22 @@ public abstract class MinecraftDebugMixin {
 
         this.halite$frames++;
 
+        // pin the camera to a fixed spot and time so runs can be compared pixel by pixel
+        String pin = System.getProperty("halite.debug.pin");
+        if (pin != null && this.player != null) {
+            String[] p = pin.split(",");
+            this.player.setPositionAndAngles(Double.parseDouble(p[0]), Double.parseDouble(p[1]), Double.parseDouble(p[2]),
+                    Float.parseFloat(p[3]), Float.parseFloat(p[4]));
+            this.player.velocityX = this.player.velocityY = this.player.velocityZ = 0.0;
+            this.player.lastTickX = this.player.prevX = this.player.x;
+            this.player.lastTickY = this.player.prevY = this.player.y;
+            this.player.lastTickZ = this.player.prevZ = this.player.z;
+            this.player.prevYaw = this.player.yaw;
+            this.player.prevPitch = this.player.pitch;
+            this.options.bobView = false;
+            this.world.setTime(1000L);
+        }
+
         // slowly turn around so every direction gets exercised
         if (this.player != null && Boolean.getBoolean("halite.debug.spin")) {
             this.player.prevYaw = this.player.yaw;
@@ -89,6 +112,17 @@ public abstract class MinecraftDebugMixin {
         if (now - this.halite$lastReport > 5000L) {
             this.halite$lastReport = now;
             HaliteClientMod.logger().info("[debug] {} | {}", this.debugText, this.worldRenderer.getChunkDebugInfo());
+        }
+
+        // for A/B comparisons: one screenshot once everything is built, then quit
+        if (Boolean.getBoolean("halite.debug.shotWhenIdle")) {
+            HaliteWorldRenderer renderer = HaliteWorldRenderer.instance();
+            this.halite$idleFrames = renderer != null && renderer.isIdle() && this.halite$frames > 100 ? this.halite$idleFrames + 1 : 0;
+            if (this.halite$idleFrames == 60) {
+                HaliteClientMod.logger().info("[debug] idle: {}", Screenshot.take(Minecraft.getRunDirectory(), this.displayWidth, this.displayHeight));
+                this.scheduleStop();
+            }
+            return;
         }
 
         if (this.halite$frames == 200 && Boolean.getBoolean("halite.debug.openSettings")) {

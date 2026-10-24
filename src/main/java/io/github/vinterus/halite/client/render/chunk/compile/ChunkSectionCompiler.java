@@ -1,72 +1,52 @@
 package io.github.vinterus.halite.client.render.chunk.compile;
 
-import io.github.vinterus.halite.client.render.chunk.ChunkMesh;
 import io.github.vinterus.halite.client.render.chunk.RenderSection;
 import io.github.vinterus.halite.client.render.chunk.occlusion.VisGraph;
-import io.github.vinterus.halite.client.render.chunk.occlusion.VisibilityEncoding;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.render.Tessellator;
 import net.minecraft.client.render.block.BlockRenderManager;
 import net.minecraft.client.render.block.entity.BlockEntityRenderDispatcher;
-import net.minecraft.world.World;
-import net.minecraft.world.WorldRegion;
-import net.minecraft.world.chunk.Chunk;
+import net.minecraft.world.BlockView;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Meshes a section by running the regular block renderers (vanilla and StationAPI's) against a world region and
- * capturing what they write into the tessellator. This keeps every block model and modded block renderer working
- * exactly as with vanilla display lists, while the output goes into compact vertex buffers.
+ * Meshes a section by running the regular block renderers (vanilla and StationAPI's) against a block view and
+ * capturing what they write into a tessellator. Every block model and modded block renderer keeps working exactly
+ * as with vanilla display lists, while the output goes into compact vertex buffers.
  *
- * <p>Must run on the render thread: block renderers write into the global tessellator.
+ * <p>The same loop serves three cases: a full build on the render thread, a build of the thread-safe blocks on a
+ * chunk builder thread (the rest are recorded), and the render-thread pass over those recorded blocks.
  */
-public class ChunkSectionCompiler {
-    private final ChunkMeshBuilder[] builders = new ChunkMeshBuilder[RenderSection.PASS_COUNT];
-    private final VisGraph visGraph = new VisGraph();
-
-    public ChunkSectionCompiler() {
-        for (int i = 0; i < this.builders.length; i++) {
-            this.builders[i] = new ChunkMeshBuilder();
-        }
+public final class ChunkSectionCompiler {
+    private ChunkSectionCompiler() {
     }
 
-    public void compile(World world, RenderSection section) {
-        int minX = section.getOriginX(), minY = section.getOriginY(), minZ = section.getOriginZ();
-        int maxX = minX + 16, maxY = minY + 16, maxZ = minZ + 16;
-
-        if (SectionEmptinessCheck.isEmpty(world, section.getChunkX(), section.getChunkY(), section.getChunkZ())) {
-            section.setBuildResult(new ChunkMesh[RenderSection.PASS_COUNT], List.of(), VisibilityEncoding.ALL, false);
-            return;
-        }
-
-        Chunk.hasSkyLight = false;
-
-        WorldRegion region = new WorldRegion(world, minX - 1, minY - 1, minZ - 1, maxX + 1, maxY + 1, maxZ + 1);
-        BlockRenderManager blockRenderer = new BlockRenderManager(region);
-
-        Tessellator tessellator = Tessellator.INSTANCE;
+    /**
+     * @param view          blocks to mesh, covering the section plus a margin
+     * @param tessellator   the tessellator the block renderers on this thread write to
+     * @param builders      one builder per render pass
+     * @param visGraph      receives opaque blocks, or null to skip
+     * @param blockEntities receives block entities that have a renderer, or null to skip
+     * @param safeTable     when not null, only blocks marked safe are rendered; the others go to {@code deferred}
+     * @param deferred      receives the section-local index of skipped blocks
+     */
+    public static void meshSection(BlockView view, int minX, int minY, int minZ, int bottomY, int topY,
+                                   Tessellator tessellator, ChunkMeshBuilder[] builders, VisGraph visGraph,
+                                   List<BlockEntity> blockEntities, boolean[] safeTable, IntArrayList deferred) {
+        BlockRenderManager blockRenderer = new BlockRenderManager(view);
         TessellatorCapture capture = (TessellatorCapture) tessellator;
 
-        List<BlockEntity> blockEntities = new ArrayList<>();
-        this.visGraph.reset();
-
-        int bottomY = world.getBottomY();
-        int topY = world.getTopY();
+        int maxX = minX + 16, maxZ = minZ + 16;
         int fromY = Math.max(minY, bottomY);
-        int toY = Math.min(maxY, topY);
-
-        for (ChunkMeshBuilder builder : this.builders) {
-            builder.reset();
-        }
+        int toY = Math.min(minY + 16, topY);
 
         for (int pass = 0; pass < RenderSection.PASS_COUNT; pass++) {
             boolean hasLaterPass = false;
-            ChunkMeshBuilder builder = this.builders[pass];
 
-            capture.halite$setCaptureTarget(builder);
+            capture.halite$setCaptureTarget(builders[pass]);
             try {
                 tessellator.startQuads();
                 tessellator.setOffset(-minX, -minY, -minZ);
@@ -74,7 +54,7 @@ public class ChunkSectionCompiler {
                 for (int y = fromY; y < toY; y++) {
                     for (int z = minZ; z < maxZ; z++) {
                         for (int x = minX; x < maxX; x++) {
-                            int id = region.getBlockId(x, y, z);
+                            int id = view.getBlockId(x, y, z);
                             if (id <= 0) {
                                 continue;
                             }
@@ -85,8 +65,13 @@ public class ChunkSectionCompiler {
                                 continue;
                             }
 
+                            boolean safe = safeTable == null || (id < safeTable.length && safeTable[id]);
+
                             if (pass == 0) {
-                                this.collectStatic(region, blockEntities, id, x, y, z, minX, minY, minZ);
+                                collectStatic(view, visGraph, blockEntities, id, x, y, z, minX, minY, minZ);
+                                if (!safe) {
+                                    deferred.add(localIndex(x - minX, y - minY, z - minZ));
+                                }
                             }
 
                             int layer = block.getRenderLayer();
@@ -95,49 +80,84 @@ public class ChunkSectionCompiler {
                                 continue;
                             }
 
-                            blockRenderer.render(block, x, y, z);
+                            if (safe) {
+                                blockRenderer.render(block, x, y, z);
+                            }
                         }
                     }
                 }
 
                 tessellator.draw();
             } finally {
-                if (capture.halite$isDrawing()) {
-                    // a block renderer threw mid-way; flush into the builder so the tessellator stays usable
-                    tessellator.draw();
-                }
-                tessellator.setOffset(0.0, 0.0, 0.0);
-                capture.halite$setCaptureTarget(null);
+                finish(tessellator, capture);
             }
 
             if (!hasLaterPass) {
                 break;
             }
         }
+    }
 
-        ChunkMesh[] meshes = new ChunkMesh[RenderSection.PASS_COUNT];
+    /** Renders blocks recorded by a worker build on the render thread. */
+    public static void meshDeferred(BlockView view, int minX, int minY, int minZ, Tessellator tessellator,
+                                    ChunkMeshBuilder[] builders, IntArrayList deferred) {
+        BlockRenderManager blockRenderer = new BlockRenderManager(view);
+        TessellatorCapture capture = (TessellatorCapture) tessellator;
+
         for (int pass = 0; pass < RenderSection.PASS_COUNT; pass++) {
-            ChunkMeshBuilder.BuiltMesh built = this.builders[pass].build(pass == RenderSection.PASS_TRANSLUCENT);
-            if (built != null) {
-                meshes[pass] = new ChunkMesh(built);
+            capture.halite$setCaptureTarget(builders[pass]);
+            try {
+                tessellator.startQuads();
+                tessellator.setOffset(-minX, -minY, -minZ);
+
+                for (int i = 0; i < deferred.size(); i++) {
+                    int index = deferred.getInt(i);
+                    int x = minX + (index & 15), z = minZ + ((index >> 4) & 15), y = minY + (index >> 8);
+
+                    int id = view.getBlockId(x, y, z);
+                    Block[] blocks = Block.BLOCKS;
+                    Block block = id > 0 && id < blocks.length ? blocks[id] : null;
+                    if (block != null && block.getRenderLayer() == pass) {
+                        blockRenderer.render(block, x, y, z);
+                    }
+                }
+
+                tessellator.draw();
+            } finally {
+                finish(tessellator, capture);
+            }
+        }
+    }
+
+    private static void finish(Tessellator tessellator, TessellatorCapture capture) {
+        if (capture.halite$isDrawing()) {
+            // a block renderer threw mid-way; flush into the builder so the tessellator stays usable
+            tessellator.draw();
+        }
+        tessellator.setOffset(0.0, 0.0, 0.0);
+        capture.halite$setCaptureTarget(null);
+    }
+
+    static int localIndex(int x, int y, int z) {
+        return x | (z << 4) | (y << 8);
+    }
+
+    private static void collectStatic(BlockView view, VisGraph visGraph, List<BlockEntity> blockEntities, int id,
+                                      int x, int y, int z, int minX, int minY, int minZ) {
+        if (visGraph != null) {
+            boolean[] opaque = Block.BLOCKS_OPAQUE;
+            if (id < opaque.length && opaque[id]) {
+                visGraph.setOpaque(x - minX, y - minY, z - minZ);
             }
         }
 
-        section.setBuildResult(meshes, blockEntities, this.visGraph.resolve(), Chunk.hasSkyLight);
-    }
-
-    private void collectStatic(WorldRegion region, List<BlockEntity> blockEntities, int id,
-                               int x, int y, int z, int minX, int minY, int minZ) {
-        boolean[] opaque = Block.BLOCKS_OPAQUE;
-        if (id < opaque.length && opaque[id]) {
-            this.visGraph.setOpaque(x - minX, y - minY, z - minZ);
-        }
-
-        boolean[] withEntity = Block.BLOCKS_WITH_ENTITY;
-        if (id < withEntity.length && withEntity[id]) {
-            BlockEntity blockEntity = region.getBlockEntity(x, y, z);
-            if (blockEntity != null && BlockEntityRenderDispatcher.INSTANCE.hasRenderer(blockEntity)) {
-                blockEntities.add(blockEntity);
+        if (blockEntities != null) {
+            boolean[] withEntity = Block.BLOCKS_WITH_ENTITY;
+            if (id < withEntity.length && withEntity[id]) {
+                BlockEntity blockEntity = view.getBlockEntity(x, y, z);
+                if (blockEntity != null && BlockEntityRenderDispatcher.INSTANCE.hasRenderer(blockEntity)) {
+                    blockEntities.add(blockEntity);
+                }
             }
         }
     }
