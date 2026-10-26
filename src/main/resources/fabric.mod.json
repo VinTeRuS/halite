@@ -4,8 +4,13 @@
   "version": "${version}",
   "name": "Halite",
   "description": "A Sodium-style rendering engine for Minecraft Beta 1.7.3 (StationAPI). Based on Sodium 0.5.11 (LGPLv3) by JellySquid & CaffeineMC; not affiliated with or endorsed by CaffeineMC.",
-  "authors": ["VinTeRuS"],
-  "contributors": ["JellySquid (original Sodium)", "CaffeineMC contributors (original Sodium)"],
+  "authors": [
+    "VinTeRuS"
+  ],
+  "contributors": [
+    "JellySquid (original Sodium)",
+    "CaffeineMC contributors (original Sodium)"
+  ],
   "contact": {
     "sources": "https://github.com/VinTeRuS/halite",
     "issues": "https://github.com/VinTeRuS/halite/issues"
@@ -14,12 +19,23 @@
   "icon": "assets/halite/icon.png",
   "environment": "client",
   "entrypoints": {
-    "client": ["io.github.vinterus.halite.client.HaliteClientMod"]
+    "client": [
+      "io.github.vinterus.halite.client.HaliteClientMod"
+    ],
+    "betterf3:event_bus_client": [
+      "io.github.vinterus.halite.client.compat.betterf3.HaliteBetterF3"
+    ]
   },
-  "mixins": ["halite.mixins.json", "halite.compat.mixins.json"],
+  "mixins": [
+    "halite.mixins.json",
+    "halite.compat.mixins.json"
+  ],
   "depends": {
     "fabricloader": ">=0.16.0",
     "minecraft": "1.0.0-beta.7.3",
     "stationapi": ">=2.0.0-alpha.6.4"
+  },
+  "suggests": {
+    "betterf3": "*"
   }
 }

@@ -1,6 +1,7 @@
 package io.github.vinterus.halite.mixin.core;
 
 import io.github.vinterus.halite.client.HaliteClientMod;
+import io.github.vinterus.halite.client.HaliteStats;
 import io.github.vinterus.halite.client.render.CloudRenderer;
 import io.github.vinterus.halite.client.render.HaliteWorldRenderer;
 import io.github.vinterus.halite.client.render.HaliteWorldRendererHolder;
@@ -139,6 +140,36 @@ public abstract class WorldRendererMixin implements HaliteWorldRendererHolder {
     @Inject(method = "getChunkDebugInfo", at = @At("HEAD"), cancellable = true)
     private void halite$debugInfo(CallbackInfoReturnable<String> cir) {
         cir.setReturnValue(this.halite$renderer.getDebugString());
+    }
+
+    @Inject(method = "renderEntities", at = @At("HEAD"))
+    private void halite$entitiesStart(Vec3d cameraPos, Culler culler, float tickDelta, CallbackInfo ci) {
+        HaliteStats.begin(HaliteStats.Stage.ENTITIES);
+    }
+
+    @Inject(method = "renderEntities", at = @At("RETURN"))
+    private void halite$entitiesEnd(Vec3d cameraPos, Culler culler, float tickDelta, CallbackInfo ci) {
+        HaliteStats.end(HaliteStats.Stage.ENTITIES);
+    }
+
+    @Inject(method = "renderSky", at = @At("HEAD"))
+    private void halite$skyStart(float tickDelta, CallbackInfo ci) {
+        HaliteStats.begin(HaliteStats.Stage.SKY);
+    }
+
+    @Inject(method = "renderSky", at = @At("RETURN"))
+    private void halite$skyEnd(float tickDelta, CallbackInfo ci) {
+        HaliteStats.end(HaliteStats.Stage.SKY);
+    }
+
+    @Inject(method = "renderClouds", at = @At("HEAD"))
+    private void halite$cloudsStart(float tickDelta, CallbackInfo ci) {
+        HaliteStats.begin(HaliteStats.Stage.CLOUDS);
+    }
+
+    @Inject(method = "renderClouds", at = @At("RETURN"))
+    private void halite$cloudsEnd(float tickDelta, CallbackInfo ci) {
+        HaliteStats.end(HaliteStats.Stage.CLOUDS);
     }
 
     @Inject(method = "renderFancyClouds", at = @At("HEAD"), cancellable = true)

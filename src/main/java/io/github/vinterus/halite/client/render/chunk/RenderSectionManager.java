@@ -1,6 +1,7 @@
 package io.github.vinterus.halite.client.render.chunk;
 
 import io.github.vinterus.halite.client.HaliteClientMod;
+import io.github.vinterus.halite.client.HaliteStats;
 import io.github.vinterus.halite.client.config.HaliteOptions;
 import io.github.vinterus.halite.client.render.chunk.compile.BlockSafety;
 import io.github.vinterus.halite.client.render.chunk.compile.ChunkBuildTask;
@@ -350,13 +351,28 @@ public class RenderSectionManager {
         return this.renderLists[pass].size();
     }
 
+    /** Copies this frame's counters to {@link HaliteStats}. */
+    public void publishStats() {
+        HaliteStats.renderedSections = this.renderLists[RenderSection.PASS_SOLID].size()
+                + this.renderLists[RenderSection.PASS_TRANSLUCENT].size();
+        HaliteStats.visibleSections = this.visibleSections;
+        HaliteStats.totalSections = this.storage.size();
+        HaliteStats.drawCalls = this.renderer.getDrawCalls();
+        HaliteStats.builtThisFrame = this.builtThisFrame;
+        HaliteStats.rebuildQueue = this.rebuildQueue.size();
+        HaliteStats.inFlight = this.inFlight;
+        HaliteStats.mainThreadBuildMs = this.buildCountTotal == 0 ? 0.0 : this.buildNanosTotal / 1.0e6 / this.buildCountTotal;
+        HaliteStats.meshMegabytes = ChunkMesh.getTotalBytes() / 1048576.0;
+        HaliteStats.allocatedMegabytes = this.regions.getAllocatedBytes() / 1048576.0;
+        HaliteStats.pages = this.regions.getPageCount();
+        HaliteStats.animations = AnimatedSprites.describe();
+    }
+
+    /** The vanilla F3 chunk line; details are listed on the right side of the screen (see {@link HaliteStats}). */
     public String getDebugString() {
-        double avgBuildMs = this.buildCountTotal == 0 ? 0.0 : this.buildNanosTotal / 1.0e6 / this.buildCountTotal;
-        return String.format("C: %d/%d (%d visible) D: %d, B: %d (%.2f ms main), Q: %d, W: %d, M: %.1f/%.1f MB in %d pages, A: %s",
+        return String.format("C: %d/%d (%d visible) D: %d",
                 this.renderLists[RenderSection.PASS_SOLID].size() + this.renderLists[RenderSection.PASS_TRANSLUCENT].size(),
-                this.storage.size(), this.visibleSections, this.renderer.getDrawCalls(), this.builtThisFrame,
-                avgBuildMs, this.rebuildQueue.size(), this.inFlight, ChunkMesh.getTotalBytes() / 1048576.0,
-                this.regions.getAllocatedBytes() / 1048576.0, this.regions.getPageCount(), AnimatedSprites.describe());
+                this.storage.size(), this.visibleSections, this.renderer.getDrawCalls());
     }
 
     public void destroy() {

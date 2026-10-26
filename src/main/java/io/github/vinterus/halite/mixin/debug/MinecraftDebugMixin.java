@@ -87,6 +87,10 @@ public abstract class MinecraftDebugMixin {
 
         this.halite$frames++;
 
+        if (Boolean.getBoolean("halite.debug.f3")) {
+            this.options.debugHud = true;
+        }
+
         // pin the camera to a fixed spot and time so runs can be compared pixel by pixel
         String pin = System.getProperty("halite.debug.pin");
         if (pin != null && this.player != null) {
@@ -100,6 +104,12 @@ public abstract class MinecraftDebugMixin {
             this.player.prevYaw = this.player.yaw;
             this.player.prevPitch = this.player.pitch;
             this.options.bobView = false;
+            this.options.hideHud = Boolean.getBoolean("halite.debug.hideHud");
+            if (this.options.hideHud) {
+                this.options.debugHud = false;
+                // dismisses the "Press E to open your inventory" hint
+                this.player.incrementStat(net.minecraft.achievement.Achievements.OPEN_INVENTORY);
+            }
             this.world.setTime(1000L);
         }
 
@@ -111,7 +121,7 @@ public abstract class MinecraftDebugMixin {
         long now = System.currentTimeMillis();
         if (now - this.halite$lastReport > 5000L) {
             this.halite$lastReport = now;
-            HaliteClientMod.logger().info("[debug] {} | {}", this.debugText, this.worldRenderer.getChunkDebugInfo());
+            HaliteClientMod.logger().info("[debug] {} | {}", this.debugText, String.join(" | ", io.github.vinterus.halite.client.HaliteStats.lines()));
         }
 
         // for A/B comparisons: one screenshot once everything is built, then quit

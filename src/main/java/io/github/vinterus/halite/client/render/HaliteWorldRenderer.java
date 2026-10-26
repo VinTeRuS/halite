@@ -1,6 +1,7 @@
 package io.github.vinterus.halite.client.render;
 
 import io.github.vinterus.halite.client.HaliteClientMod;
+import io.github.vinterus.halite.client.HaliteStats;
 import io.github.vinterus.halite.client.gl.GlCompat;
 import io.github.vinterus.halite.client.config.HaliteOptions;
 import io.github.vinterus.halite.client.render.chunk.RenderSectionManager;
@@ -84,7 +85,9 @@ public class HaliteWorldRenderer {
         double z = camera.lastTickZ + (camera.z - camera.lastTickZ) * tickDelta;
 
         this.viewport = new Viewport(culler, x, y, z);
+        HaliteStats.begin(HaliteStats.Stage.VISIBILITY);
         this.sections.update(this.viewport, this.getRenderDistance());
+        HaliteStats.end(HaliteStats.Stage.VISIBILITY);
 
         // burning entities show the fire texture outside of any chunk mesh
         if (++this.frameCounter % 10 == 0) {
@@ -106,7 +109,12 @@ public class HaliteWorldRenderer {
             return true;
         }
         long budget = HaliteClientMod.options().chunkBuildBudgetMs * 1_000_000L;
-        return this.sections.buildChunks(budget, this.chunkBuilder);
+        HaliteStats.begin(HaliteStats.Stage.CHUNK_UPDATES);
+        boolean done = this.sections.buildChunks(budget, this.chunkBuilder);
+        HaliteStats.end(HaliteStats.Stage.CHUNK_UPDATES);
+        HaliteStats.builder = this.getChunkBuilderDescription();
+        this.sections.publishStats();
+        return done;
     }
 
     /** Starts or stops the worker pool to match the options. Only called while no world is loaded. */
@@ -138,7 +146,10 @@ public class HaliteWorldRenderer {
         if (this.sections == null || this.viewport == null) {
             return 0;
         }
-        return this.sections.renderLayer(layer, this.viewport);
+        HaliteStats.begin(HaliteStats.Stage.TERRAIN);
+        int drawn = this.sections.renderLayer(layer, this.viewport);
+        HaliteStats.end(HaliteStats.Stage.TERRAIN);
+        return drawn;
     }
 
     public void markDirty(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {

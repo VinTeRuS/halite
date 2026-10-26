@@ -1,6 +1,10 @@
 package io.github.vinterus.halite.mixin.features;
 
 import io.github.vinterus.halite.client.HaliteClientMod;
+import io.github.vinterus.halite.client.HaliteStats;
+import net.minecraft.entity.Entity;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import io.github.vinterus.halite.client.render.HaliteWorldRenderer;
 import net.minecraft.client.particle.Particle;
 import net.minecraft.client.particle.ParticleManager;
@@ -14,6 +18,16 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  */
 @Mixin(ParticleManager.class)
 public class ParticleManagerMixin {
+    @Inject(method = {"render", "renderLit"}, at = @At("HEAD"))
+    private void halite$particlesStart(Entity entity, float partialTicks, CallbackInfo ci) {
+        HaliteStats.begin(HaliteStats.Stage.PARTICLES);
+    }
+
+    @Inject(method = {"render", "renderLit"}, at = @At("RETURN"))
+    private void halite$particlesEnd(Entity entity, float partialTicks, CallbackInfo ci) {
+        HaliteStats.end(HaliteStats.Stage.PARTICLES);
+    }
+
     @Redirect(method = "render", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/particle/Particle;render(Lnet/minecraft/client/render/Tessellator;FFFFFF)V"))
     private void halite$cullParticle(Particle particle, Tessellator tessellator, float partialTicks,

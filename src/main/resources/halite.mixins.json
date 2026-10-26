@@ -10,6 +10,7 @@
     "features.GameRendererMixin",
     "features.TextureManagerMixin",
     "features.ParticleManagerMixin",
+    "features.InGameHudMixin",
     "features.VideoOptionsScreenMixin",
     "debug.MinecraftDebugMixin"
   ],

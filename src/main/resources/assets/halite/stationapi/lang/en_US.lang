@@ -1,0 +1,9 @@
+text.halite.module.halite=Halite
+text.halite.line.renderer=Halite
+text.halite.line.sections=Sections
+text.halite.line.draw_calls=Draw calls
+text.halite.line.chunk_builds=Chunk builds
+text.halite.line.geometry=Geometry
+text.halite.line.animations=Animations
+text.halite.line.cpu_world=CPU ms
+text.halite.line.cpu_other=CPU ms

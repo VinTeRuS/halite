@@ -26,6 +26,8 @@ loom {
 			vmArg("-Dhalite.debug.spin=" + (project.findProperty("spin") ?: "true"))
 			vmArg("-Dhalite.debug.shotWhenIdle=" + (project.findProperty("shotWhenIdle") ?: "false"))
 			project.findProperty("pin")?.let { vmArg("-Dhalite.debug.pin=$it") }
+			project.findProperty("hideHud")?.let { vmArg("-Dhalite.debug.hideHud=$it") }
+			project.findProperty("f3")?.let { vmArg("-Dhalite.debug.f3=$it") }
 			vmArg("-Dhalite.debug.openSettings=" + (project.findProperty("openSettings") ?: "false"))
 		}
 	}
@@ -75,6 +77,10 @@ dependencies {
 	// https://github.com/calmilamsy/glass-config-api
 	modImplementation("net.glasslauncher.mods:GlassConfigAPI:${project.properties["gcapi_version"]}")
 	// https://github.com/calmilamsy/modmenu
+	// optional integration: Halite adds a module to BetterF3's debug screen when it is installed
+	modCompileOnly("maven.modrinth:betterf3-stationapi:0.7.0")
+	modLocalRuntime("maven.modrinth:betterf3-stationapi:0.7.0")
+
 	modImplementation("net.danygames2014:modmenu:${project.properties["modmenu_version"]}")
 	// https://github.com/Glass-Series/Always-More-Items
 	//modImplementation("net.glasslauncher.mods:AlwaysMoreItems:${project.properties["alwaysmoreitems_version"]}")
