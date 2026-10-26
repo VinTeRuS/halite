@@ -16,6 +16,10 @@ import java.util.Properties;
 public class HaliteOptions {
     /** Render distance in chunks; 0 follows the vanilla "Render Distance" button. */
     public int renderDistance = 0;
+    /** Entities further away than this many blocks are not drawn; 0 keeps vanilla's size-based limit only. */
+    public int entityRenderDistance = 0;
+    /** Block entities further away than this many blocks are not drawn; 0 keeps vanilla's 64 blocks. */
+    public int blockEntityRenderDistance = 0;
     public boolean useOcclusionCulling = true;
     public boolean useFaceCulling = true;
     public boolean useEntityCulling = true;
@@ -46,6 +50,8 @@ public class HaliteOptions {
             try (Reader reader = Files.newBufferedReader(path)) {
                 props.load(reader);
                 options.renderDistance = getInt(props, "renderDistance", options.renderDistance, 0, 32);
+                options.entityRenderDistance = getInt(props, "entityRenderDistance", options.entityRenderDistance, 0, 256);
+                options.blockEntityRenderDistance = getInt(props, "blockEntityRenderDistance", options.blockEntityRenderDistance, 0, 64);
                 options.useOcclusionCulling = getBool(props, "useOcclusionCulling", options.useOcclusionCulling);
                 options.useFaceCulling = getBool(props, "useFaceCulling", options.useFaceCulling);
                 options.useEntityCulling = getBool(props, "useEntityCulling", options.useEntityCulling);
@@ -70,6 +76,8 @@ public class HaliteOptions {
     public void save() {
         Properties props = new Properties();
         props.setProperty("renderDistance", Integer.toString(this.renderDistance));
+        props.setProperty("entityRenderDistance", Integer.toString(this.entityRenderDistance));
+        props.setProperty("blockEntityRenderDistance", Integer.toString(this.blockEntityRenderDistance));
         props.setProperty("useOcclusionCulling", Boolean.toString(this.useOcclusionCulling));
         props.setProperty("useFaceCulling", Boolean.toString(this.useFaceCulling));
         props.setProperty("useEntityCulling", Boolean.toString(this.useEntityCulling));

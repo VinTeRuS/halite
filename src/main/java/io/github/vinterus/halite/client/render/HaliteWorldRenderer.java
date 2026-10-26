@@ -176,7 +176,20 @@ public class HaliteWorldRenderer {
     }
 
     public boolean isEntityVisible(Box box) {
-        if (this.sections == null || !HaliteClientMod.options().useEntityCulling) {
+        HaliteOptions options = HaliteClientMod.options();
+
+        int maxDistance = options.entityRenderDistance;
+        Viewport viewport = this.viewport;
+        if (maxDistance > 0 && viewport != null) {
+            double dx = (box.minX + box.maxX) * 0.5 - viewport.x;
+            double dy = (box.minY + box.maxY) * 0.5 - viewport.y;
+            double dz = (box.minZ + box.maxZ) * 0.5 - viewport.z;
+            if (dx * dx + dy * dy + dz * dz > (double) maxDistance * maxDistance) {
+                return false;
+            }
+        }
+
+        if (this.sections == null || !options.useEntityCulling) {
             return true;
         }
         return this.sections.isBoxVisible(box);
@@ -187,9 +200,28 @@ public class HaliteWorldRenderer {
         if (this.sections == null) {
             return List.of();
         }
-        return HaliteClientMod.options().useBlockEntityCulling
+        HaliteOptions options = HaliteClientMod.options();
+        List<BlockEntity> candidates = options.useBlockEntityCulling
                 ? this.sections.getVisibleBlockEntities()
                 : this.sections.getAllBlockEntities();
+
+        int maxDistance = options.blockEntityRenderDistance;
+        Viewport viewport = this.viewport;
+        if (maxDistance <= 0 || viewport == null) {
+            return candidates;
+        }
+
+        double limit = (double) maxDistance * maxDistance;
+        List<BlockEntity> near = new java.util.ArrayList<>();
+        for (BlockEntity blockEntity : candidates) {
+            double dx = blockEntity.x + 0.5 - viewport.x;
+            double dy = blockEntity.y + 0.5 - viewport.y;
+            double dz = blockEntity.z + 0.5 - viewport.z;
+            if (dx * dx + dy * dy + dz * dz <= limit) {
+                near.add(blockEntity);
+            }
+        }
+        return near;
     }
 
     public boolean isIdle() {
