@@ -154,7 +154,7 @@ public class ChunkMesh {
         int n = this.quadCount;
         if (this.sortKeys == null) {
             this.sortKeys = new long[n];
-            this.sortTarget = ByteBuffer.allocateDirect(n * QUAD_BYTES).order(ByteOrder.nativeOrder());
+            this.sortTarget = ByteBuffer.allocate(n * QUAD_BYTES).order(ByteOrder.nativeOrder());
         }
         long[] keys = this.sortKeys;
         for (int i = 0; i < n; i++) {

@@ -186,7 +186,8 @@ public class ChunkMeshBuilder {
             return null;
         }
 
-        ByteBuffer out = ByteBuffer.allocateDirect(totalQuads * 4 * ChunkVertexFormat.STRIDE).order(ByteOrder.nativeOrder());
+        // heap memory on purpose, see BufferPage#staged
+        ByteBuffer out = ByteBuffer.allocate(totalQuads * 4 * ChunkVertexFormat.STRIDE).order(ByteOrder.nativeOrder());
         int[] starts = new int[ModelQuadFacing.COUNT];
         int[] counts = new int[ModelQuadFacing.COUNT];
         float[] centers = translucent ? new float[totalQuads * 3] : null;

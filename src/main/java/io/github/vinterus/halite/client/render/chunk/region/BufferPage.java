@@ -129,6 +129,9 @@ public final class BufferPage {
     void upload(int firstQuad, ByteBuffer data) {
         ByteBuffer src = data.duplicate();
         if (this.bufferId != 0) {
+            if (!src.isDirect()) {
+                src = staged(src);
+            }
             GlCompat.bindBuffer(GlCompat.ARRAY_BUFFER, this.bufferId);
             GlCompat.bufferSubData(GlCompat.ARRAY_BUFFER, (long) firstQuad * QUAD_BYTES, src);
             GlCompat.bindBuffer(GlCompat.ARRAY_BUFFER, 0);
@@ -137,6 +140,22 @@ public final class BufferPage {
             dst.position(firstQuad * QUAD_BYTES);
             dst.put(src);
         }
+    }
+
+    // Meshes are built into heap buffers: a direct buffer per rebuild is only freed by the GC, and running into the
+    // direct memory limit (small on Pojav) makes the JVM stall in System.gc(). LWJGL wants direct memory, so uploads
+    // go through this one reused buffer. Render thread only.
+    private static ByteBuffer stagingBuffer;
+
+    private static ByteBuffer staged(ByteBuffer src) {
+        int bytes = src.remaining();
+        if (stagingBuffer == null || stagingBuffer.capacity() < bytes) {
+            stagingBuffer = ByteBuffer.allocateDirect(Math.max(bytes, 256 * 1024)).order(ByteOrder.nativeOrder());
+        }
+        ByteBuffer staging = stagingBuffer.duplicate();
+        staging.clear();
+        staging.put(src).flip();
+        return staging;
     }
 
     private static ByteBuffer zeroBuffer;
