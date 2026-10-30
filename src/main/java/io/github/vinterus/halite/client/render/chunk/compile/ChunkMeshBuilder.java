@@ -8,6 +8,7 @@ import org.lwjgl.opengl.GL11;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * Collects the geometry that block renderers push through the vanilla tessellator while a section is being
@@ -32,6 +33,27 @@ public class ChunkMeshBuilder {
     private final float[] px = new float[4], py = new float[4], pz = new float[4];
     private final float[] tu = new float[4], tv = new float[4];
     private final int[] col = new int[4];
+
+    // Builders keep their grown group buffers, so pooled ones skip both the allocation and the zeroing.
+    private static final int POOL_SIZE = 24;
+    private static final ConcurrentLinkedQueue<ChunkMeshBuilder> POOL = new ConcurrentLinkedQueue<>();
+
+    /** A reset builder, from the pool when one is free. */
+    public static ChunkMeshBuilder acquire() {
+        ChunkMeshBuilder builder = POOL.poll();
+        if (builder == null) {
+            return new ChunkMeshBuilder();
+        }
+        builder.reset();
+        return builder;
+    }
+
+    /** Returns a builder whose mesh has been built and uploaded. */
+    public static void release(ChunkMeshBuilder builder) {
+        if (POOL.size() < POOL_SIZE) {
+            POOL.offer(builder);
+        }
+    }
 
     public ChunkMeshBuilder() {
         for (int i = 0; i < this.groups.length; i++) {
@@ -172,8 +194,11 @@ public class ChunkMeshBuilder {
         group.quads++;
     }
 
+    private static ByteBuffer opaqueScratch;
+
     /**
-     * Packs all groups into a single buffer, facing groups first and unassigned last.
+     * Packs all groups into a single buffer, facing groups first and unassigned last. Render thread only: for
+     * opaque passes the returned data lives in a shared buffer that the next call overwrites.
      *
      * @param translucent whether quad centers should be kept for back-to-front sorting
      */
@@ -186,8 +211,19 @@ public class ChunkMeshBuilder {
             return null;
         }
 
-        // heap memory on purpose, see BufferPage#staged
-        ByteBuffer out = ByteBuffer.allocate(totalQuads * 4 * ChunkVertexFormat.STRIDE).order(ByteOrder.nativeOrder());
+        int bytes = totalQuads * 4 * ChunkVertexFormat.STRIDE;
+        ByteBuffer out;
+        if (translucent) {
+            // kept by the mesh for sorting; heap memory on purpose, see BufferPage#staged
+            out = ByteBuffer.allocate(bytes).order(ByteOrder.nativeOrder());
+        } else {
+            // only uploaded and then dropped, so a reused direct buffer saves the allocation and the staging copy
+            if (opaqueScratch == null || opaqueScratch.capacity() < bytes) {
+                opaqueScratch = ByteBuffer.allocateDirect(Math.max(bytes, 256 * 1024)).order(ByteOrder.nativeOrder());
+            }
+            out = opaqueScratch.duplicate().order(ByteOrder.nativeOrder());
+            out.clear();
+        }
         int[] starts = new int[ModelQuadFacing.COUNT];
         int[] counts = new int[ModelQuadFacing.COUNT];
         float[] centers = translucent ? new float[totalQuads * 3] : null;

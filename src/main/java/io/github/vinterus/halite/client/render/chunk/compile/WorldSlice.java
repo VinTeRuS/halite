@@ -45,6 +45,10 @@ public final class WorldSlice extends WorldRegion {
     private final byte[] light;
     private final BlockState[] states;
     private final BlockEntity[] blockEntities;
+    // filled by prepare(): light with the slab/stair/farmland neighbour rule applied, and Block#isOpaque per block
+    private final byte[] brightness;
+    private final boolean[] opaque;
+    private boolean prepared;
 
     private final float[] luminance;
     private final SnapshotBiomeSource biomes;
@@ -68,6 +72,28 @@ public final class WorldSlice extends WorldRegion {
         this.light = this.storage.light;
         this.states = this.storage.states;
         this.blockEntities = this.storage.blockEntities;
+        this.brightness = this.storage.brightness;
+        this.opaque = this.storage.opaque;
+    }
+
+    /**
+     * Precomputes what smooth lighting asks for many times per block, so those queries become one array read.
+     * Call on the thread that meshes the slice, before meshing.
+     */
+    public void prepare() {
+        Block[] blocks = Block.BLOCKS;
+        int i = 0;
+        for (int y = this.originY; y < this.originY + SIZE; y++) {
+            for (int z = this.originZ; z < this.originZ + SIZE; z++) {
+                for (int x = this.originX; x < this.originX + SIZE; x++, i++) {
+                    this.brightness[i] = (byte) this.computeRawBrightness(x, y, z, true);
+                    int id = this.ids[i];
+                    Block block = id > 0 && id < blocks.length ? blocks[id] : null;
+                    this.opaque[i] = block != null && block.isOpaque();
+                }
+            }
+        }
+        this.prepared = true;
     }
 
     /**
@@ -90,6 +116,8 @@ public final class WorldSlice extends WorldRegion {
         final byte[] light = new byte[VOLUME];
         final BlockState[] states = new BlockState[VOLUME];
         final BlockEntity[] blockEntities = new BlockEntity[VOLUME];
+        final byte[] brightness = new byte[VOLUME];
+        final boolean[] opaque = new boolean[VOLUME];
     }
 
     /** Copies the area around a section. Must be called on the render thread. */
@@ -268,6 +296,13 @@ public final class WorldSlice extends WorldRegion {
 
     @Override
     public int getRawBrightness(int x, int y, int z, boolean useNeighborLight) {
+        if (useNeighborLight && this.prepared && this.contains(x, y, z)) {
+            return this.brightness[this.index(x, y, z)];
+        }
+        return this.computeRawBrightness(x, y, z, useNeighborLight);
+    }
+
+    private int computeRawBrightness(int x, int y, int z, boolean useNeighborLight) {
         if (useNeighborLight) {
             int id = this.getBlockId(x, y, z);
             if (id == Block.SLAB.id || id == Block.FARMLAND.id || id == Block.WOODEN_STAIRS.id || id == Block.COBBLESTONE_STAIRS.id) {
@@ -308,6 +343,9 @@ public final class WorldSlice extends WorldRegion {
 
     @Override
     public boolean method_1783(int x, int y, int z) {
+        if (this.prepared && this.contains(x, y, z)) {
+            return this.opaque[this.index(x, y, z)];
+        }
         Block block = this.block(x, y, z);
         return block != null && block.isOpaque();
     }

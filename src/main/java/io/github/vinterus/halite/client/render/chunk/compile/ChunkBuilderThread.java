@@ -1,5 +1,6 @@
 package io.github.vinterus.halite.client.render.chunk.compile;
 
+import io.github.vinterus.halite.client.render.chunk.occlusion.VisGraph;
 import net.minecraft.client.render.Tessellator;
 
 /**
@@ -10,6 +11,7 @@ public final class ChunkBuilderThread extends Thread {
     private final Tessellator tessellator;
     private final Object bakedModelRenderer;
     private final BlockCopies blockCopies = new BlockCopies();
+    private final VisGraph visGraph = new VisGraph();
 
     ChunkBuilderThread(Runnable task, String name, Tessellator tessellator, Object bakedModelRenderer) {
         super(task, name);
@@ -22,6 +24,11 @@ public final class ChunkBuilderThread extends Thread {
     /** This thread's own copies of blocks whose renderers rewrite the block's bounds. */
     public BlockCopies getBlockCopies() {
         return this.blockCopies;
+    }
+
+    /** Scratch space for this thread's visibility graphs; only used while a task runs. */
+    public VisGraph getVisGraph() {
+        return this.visGraph;
     }
 
     public Tessellator getTessellator() {

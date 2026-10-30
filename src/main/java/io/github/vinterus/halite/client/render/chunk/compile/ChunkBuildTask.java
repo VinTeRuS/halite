@@ -42,11 +42,13 @@ public final class ChunkBuildTask {
     /** Runs on a chunk builder thread. */
     void run(ChunkBuilderThread thread) {
         for (int i = 0; i < this.builders.length; i++) {
-            this.builders[i] = new ChunkMeshBuilder();
+            this.builders[i] = ChunkMeshBuilder.acquire();
         }
         RenderSectionManager.setRegionOffset(this.builders, this.section);
 
-        VisGraph visGraph = new VisGraph();
+        this.slice.prepare();
+        VisGraph visGraph = thread.getVisGraph();
+        visGraph.reset();
         ChunkSectionCompiler.meshSection(this.slice,
                 this.section.getOriginX(), this.section.getOriginY(), this.section.getOriginZ(), this.bottomY, this.topY,
                 thread.getTessellator(), this.builders, visGraph, this.blockEntities, this.modeTable, thread.getBlockCopies(),
@@ -96,8 +98,14 @@ public final class ChunkBuildTask {
         return this.slice.usesSkyLight();
     }
 
-    /** Hands the slice's arrays back for reuse once the result has been applied. Render thread. */
-    public void releaseSlice() {
+    /** Hands the slice's arrays and the mesh builders back for reuse once the result has been applied. Render thread. */
+    public void release() {
         this.slice.release();
+        for (int i = 0; i < this.builders.length; i++) {
+            if (this.builders[i] != null) {
+                ChunkMeshBuilder.release(this.builders[i]);
+                this.builders[i] = null;
+            }
+        }
     }
 }
