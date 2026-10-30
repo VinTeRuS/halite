@@ -190,6 +190,7 @@ public class RenderSectionManager {
         section.setBuilding(false);
 
         if (section.isDeleted()) {
+            task.releaseSlice();
             return;
         }
 
@@ -206,6 +207,7 @@ public class RenderSectionManager {
             section.setBuildResult(this.upload(task.getBuilders(), section), task.getBlockEntities(), task.getVisibilityData(),
                     task.usesSkyLight(), task.getVersion());
         }
+        task.releaseSlice();
         this.builtThisFrame++;
         this.recordMainThreadTime(start);
     }

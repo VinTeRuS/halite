@@ -3,13 +3,17 @@ package io.github.vinterus.halite.client.render.chunk.compile;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.material.Material;
+import net.minecraft.world.LightType;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldRegion;
 import net.minecraft.world.biome.source.BiomeSource;
 import net.minecraft.world.chunk.Chunk;
 import net.modificationstation.stationapi.api.block.BlockState;
 import net.modificationstation.stationapi.api.block.States;
+import net.modificationstation.stationapi.impl.world.chunk.ChunkSection;
 import net.modificationstation.stationapi.impl.world.chunk.FlattenedChunk;
+
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * An immutable copy of the blocks, light and biomes around one section, taken on the render thread so the section
@@ -30,11 +34,17 @@ public final class WorldSlice extends WorldRegion {
     private final int bottomY, topY;
     private final int skyLightAbove;
 
-    private final int[] ids = new int[VOLUME];
-    private final byte[] metas = new byte[VOLUME];
-    private final byte[] light = new byte[VOLUME];
-    private final BlockState[] states = new BlockState[VOLUME];
-    private final BlockEntity[] blockEntities = new BlockEntity[VOLUME];
+    // The arrays are about 110 KB per slice and one slice is taken per rebuild, so they are pooled. Every copy
+    // writes every element, so reused arrays need no clearing.
+    private static final int POOL_SIZE = 32;
+    private static final ConcurrentLinkedQueue<Storage> POOL = new ConcurrentLinkedQueue<>();
+
+    private Storage storage;
+    private final int[] ids;
+    private final byte[] metas;
+    private final byte[] light;
+    private final BlockState[] states;
+    private final BlockEntity[] blockEntities;
 
     private final float[] luminance;
     private final SnapshotBiomeSource biomes;
@@ -50,6 +60,36 @@ public final class WorldSlice extends WorldRegion {
         this.skyLightAbove = Math.max(0, 15 - world.ambientDarkness);
         this.luminance = world.dimension.lightLevelToLuminance.clone();
         this.biomes = SnapshotBiomeSource.capture(world, originX + 1, originZ + 1, SIZE - 2);
+
+        Storage storage = POOL.poll();
+        this.storage = storage != null ? storage : new Storage();
+        this.ids = this.storage.ids;
+        this.metas = this.storage.metas;
+        this.light = this.storage.light;
+        this.states = this.storage.states;
+        this.blockEntities = this.storage.blockEntities;
+    }
+
+    /**
+     * Returns the arrays to the pool. The slice must not be used afterwards; render thread, once the build result
+     * has been applied.
+     */
+    public void release() {
+        Storage storage = this.storage;
+        if (storage != null) {
+            this.storage = null;
+            if (POOL.size() < POOL_SIZE) {
+                POOL.offer(storage);
+            }
+        }
+    }
+
+    private static final class Storage {
+        final int[] ids = new int[VOLUME];
+        final byte[] metas = new byte[VOLUME];
+        final byte[] light = new byte[VOLUME];
+        final BlockState[] states = new BlockState[VOLUME];
+        final BlockEntity[] blockEntities = new BlockEntity[VOLUME];
     }
 
     /** Copies the area around a section. Must be called on the render thread. */
@@ -72,51 +112,101 @@ public final class WorldSlice extends WorldRegion {
         for (int cx = minCx; cx <= maxCx; cx++) {
             for (int cz = minCz; cz <= maxCz; cz++) {
                 Chunk chunk = world.getChunk(cx, cz);
-                boolean flattened = chunk instanceof FlattenedChunk;
+                FlattenedChunk flattened = chunk instanceof FlattenedChunk f ? f : null;
 
                 int x0 = Math.max(this.originX, cx << 4), x1 = Math.min(this.originX + SIZE, (cx << 4) + 16);
                 int z0 = Math.max(this.originZ, cz << 4), z1 = Math.min(this.originZ + SIZE, (cz << 4) + 16);
 
                 for (int y = this.originY; y < this.originY + SIZE; y++) {
-                    boolean inWorld = y >= this.bottomY && y < this.topY;
-
-                    for (int z = z0; z < z1; z++) {
-                        for (int x = x0; x < x1; x++) {
-                            int index = this.index(x, y, z);
-
-                            if (!inWorld) {
-                                this.states[index] = air;
-                                this.light[index] = (byte) (y >= this.topY ? this.skyLightAbove : 0);
-                                continue;
-                            }
-
-                            int lx = x & 15, lz = z & 15;
-                            int id;
-                            BlockState state;
-
-                            if (flattened) {
-                                state = chunk.getBlockState(lx, y, lz);
-                                id = state.getBlock().id;
-                            } else {
-                                id = chunk.getBlockId(lx, y, lz);
-                                state = id == 0 ? air : chunk.getBlockState(lx, y, lz);
-                            }
-
-                            this.ids[index] = id;
-                            this.states[index] = state;
-                            this.metas[index] = (byte) chunk.getBlockMeta(lx, y, lz);
-                            this.light[index] = (byte) chunk.getLight(lx, y, lz, ambientDarkness);
-
-                            if (id > 0 && id < withEntity.length && withEntity[id]) {
-                                this.blockEntities[index] = chunk.getBlockEntity(lx, y, lz);
-                            }
-                        }
+                    if (y < this.bottomY || y >= this.topY) {
+                        this.fillRow(x0, x1, y, z0, z1, air, (byte) (y >= this.topY ? this.skyLightAbove : 0));
+                    } else if (flattened != null) {
+                        this.copyRow(world, flattened, x0, x1, y, z0, z1, ambientDarkness, withEntity);
+                    } else {
+                        this.copyRowLegacy(chunk, x0, x1, y, z0, z1, ambientDarkness, withEntity, air);
                     }
                 }
             }
         }
 
-        this.usesSkyLight = Chunk.hasSkyLight;
+        this.usesSkyLight |= Chunk.hasSkyLight;
+    }
+
+    private void fillRow(int x0, int x1, int y, int z0, int z1, BlockState state, byte light) {
+        for (int z = z0; z < z1; z++) {
+            int index = this.index(x0, y, z);
+            for (int x = x0; x < x1; x++, index++) {
+                this.ids[index] = 0;
+                this.metas[index] = 0;
+                this.states[index] = state;
+                this.light[index] = light;
+                this.blockEntities[index] = null;
+            }
+        }
+    }
+
+    /**
+     * Reads a StationAPI chunk section directly: looking the section up once per layer instead of four times per
+     * block. Mirrors {@link FlattenedChunk#getLight(int, int, int, int)}, including its sky light flag.
+     */
+    private void copyRow(World world, FlattenedChunk chunk, int x0, int x1, int y, int z0, int z1, int ambientDarkness,
+                         boolean[] withEntity) {
+        int sectionIndex = world.sectionCoordToIndex(y >> 4);
+        ChunkSection[] sections = chunk.sections;
+        ChunkSection section = sectionIndex >= 0 && sectionIndex < sections.length ? sections[sectionIndex] : null;
+        if (section == null) {
+            int sky = world.dimension.hasCeiling ? 0 : 15;
+            if (sky > 0) {
+                this.usesSkyLight = true;
+            }
+            this.fillRow(x0, x1, y, z0, z1, States.AIR.get(), (byte) Math.max(sky - ambientDarkness, 0));
+            return;
+        }
+
+        int ly = y & 15;
+        for (int z = z0; z < z1; z++) {
+            int lz = z & 15;
+            int index = this.index(x0, y, z);
+            for (int x = x0; x < x1; x++, index++) {
+                int lx = x & 15;
+                int local = lx << 8 | ly << 4 | lz;
+
+                BlockState state = section.getBlockState(lx, ly, lz);
+                int id = state.getBlock().id;
+                this.ids[index] = id;
+                this.states[index] = state;
+                this.metas[index] = (byte) section.getMeta(local);
+
+                int light = section.getLight(LightType.SKY, local);
+                if (light > 0) {
+                    this.usesSkyLight = true;
+                }
+                light -= ambientDarkness;
+                int blockLight = section.getLight(LightType.BLOCK, local);
+                this.light[index] = (byte) Math.max(light, blockLight);
+
+                this.blockEntities[index] = id > 0 && id < withEntity.length && withEntity[id]
+                        ? chunk.getBlockEntity(lx, y, lz) : null;
+            }
+        }
+    }
+
+    private void copyRowLegacy(Chunk chunk, int x0, int x1, int y, int z0, int z1, int ambientDarkness,
+                               boolean[] withEntity, BlockState air) {
+        for (int z = z0; z < z1; z++) {
+            int lz = z & 15;
+            int index = this.index(x0, y, z);
+            for (int x = x0; x < x1; x++, index++) {
+                int lx = x & 15;
+                int id = chunk.getBlockId(lx, y, lz);
+                this.ids[index] = id;
+                this.states[index] = id == 0 ? air : chunk.getBlockState(lx, y, lz);
+                this.metas[index] = (byte) chunk.getBlockMeta(lx, y, lz);
+                this.light[index] = (byte) chunk.getLight(lx, y, lz, ambientDarkness);
+                this.blockEntities[index] = id > 0 && id < withEntity.length && withEntity[id]
+                        ? chunk.getBlockEntity(lx, y, lz) : null;
+            }
+        }
     }
 
     private int index(int x, int y, int z) {

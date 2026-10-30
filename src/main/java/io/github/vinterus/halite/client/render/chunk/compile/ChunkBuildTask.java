@@ -95,4 +95,9 @@ public final class ChunkBuildTask {
     public boolean usesSkyLight() {
         return this.slice.usesSkyLight();
     }
+
+    /** Hands the slice's arrays back for reuse once the result has been applied. Render thread. */
+    public void releaseSlice() {
+        this.slice.release();
+    }
 }
