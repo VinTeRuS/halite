@@ -14,59 +14,81 @@ import java.util.Map;
  * Decides which blocks may be meshed off the render thread.
  *
  * <p>Beta keeps a block's bounding box in mutable fields on the shared {@link Block} instance, and several
- * renderers (stairs, fences, pistons, levers) and {@code updateBoundingBox} overrides (snow layers, doors,
- * trapdoors, rails, ...) rewrite it while rendering. The render thread reads and writes the same fields for
- * collision and ray casts, so those blocks are always meshed on the render thread. So are blocks with custom
- * StationAPI world renderers, whose code is unknown.
+ * renderers (stairs, fences, levers, doors) and {@code updateBoundingBox} overrides (snow layers, trapdoors,
+ * rails, ...) rewrite it while rendering. The render thread reads and writes the same fields for collision and ray
+ * casts. Vanilla blocks of that kind are rendered on workers through a per-thread copy of the block object, so the
+ * writes land in the copy ({@link #MODE_CLONE}). Modded ones and blocks with custom StationAPI world renderers,
+ * whose code is unknown, stay on the render thread ({@link #MODE_RENDER_THREAD}).
  */
 public final class BlockSafety {
+    public static final byte MODE_RENDER_THREAD = 0;
+    public static final byte MODE_WORKER = 1;
+    public static final byte MODE_CLONE = 2;
+
     /** Render types whose vanilla renderers never touch the block's bounds. */
     private static final boolean[] SAFE_RENDER_TYPES = new boolean[32];
+    /** Render types whose vanilla renderers only change the bounds of the block being rendered. */
+    private static final boolean[] CLONEABLE_RENDER_TYPES = new boolean[32];
 
     static {
         for (int type : new int[]{0, 1, 2, 3, 4, 5, 6, 8, 9, 13, 14, 15}) {
             SAFE_RENDER_TYPES[type] = true;
+            CLONEABLE_RENDER_TYPES[type] = true;
+        }
+        // doors, stairs, fences, levers; pistons (16, 17) are left out, their rendering is tied to block entities
+        for (int type : new int[]{7, 10, 11, 12}) {
+            CLONEABLE_RENDER_TYPES[type] = true;
         }
     }
 
     private static final Map<Class<?>, Boolean> MUTATING_CLASSES = new IdentityHashMap<>();
     private static Method[] boundsMethods;
 
-    private static boolean[] safe = new boolean[0];
+    private static byte[] modes = new byte[0];
     private static Block[] blocksSnapshot;
 
     private BlockSafety() {
     }
 
-    /** Table indexed by block id; recomputed when the block registry array changes. Render thread only. */
-    public static boolean[] getSafeTable() {
+    /** Meshing mode per block id; recomputed when the block registry array changes. Render thread only. */
+    public static byte[] getModeTable() {
         Block[] blocks = Block.BLOCKS;
-        if (blocks != blocksSnapshot || safe.length != blocks.length) {
-            boolean[] table = new boolean[blocks.length];
-            int unsafeCount = 0;
+        if (blocks != blocksSnapshot || modes.length != blocks.length) {
+            byte[] table = new byte[blocks.length];
+            int renderThread = 0, cloned = 0;
             for (int id = 0; id < blocks.length; id++) {
                 Block block = blocks[id];
-                table[id] = block == null || isSafe(block);
-                if (!table[id]) {
-                    unsafeCount++;
+                table[id] = block == null ? MODE_WORKER : modeOf(block);
+                if (table[id] == MODE_RENDER_THREAD) {
+                    renderThread++;
+                } else if (table[id] == MODE_CLONE) {
+                    cloned++;
                 }
             }
-            safe = table;
+            modes = table;
             blocksSnapshot = blocks;
-            HaliteClientMod.logger().info("{} of {} block types are meshed on the render thread", unsafeCount, blocks.length);
+            BlockCopies.invalidateAll();
+            HaliteClientMod.logger().info("Block meshing: {} types on workers through per-thread copies, {} on the render thread",
+                    cloned, renderThread);
         }
-        return safe;
+        return modes;
     }
 
-    private static boolean isSafe(Block block) {
+    private static byte modeOf(Block block) {
         int type = block.getRenderType();
-        if (type < 0 || type >= SAFE_RENDER_TYPES.length || !SAFE_RENDER_TYPES[type]) {
-            return false;
+        if (type < 0 || type >= SAFE_RENDER_TYPES.length || block instanceof BlockWithWorldRenderer) {
+            return MODE_RENDER_THREAD;
         }
-        if (block instanceof BlockWithWorldRenderer) {
-            return false;
+
+        boolean mutatesBounds = !SAFE_RENDER_TYPES[type]
+                || MUTATING_CLASSES.computeIfAbsent(block.getClass(), BlockSafety::overridesBoundsUpdate);
+        if (!mutatesBounds) {
+            return MODE_WORKER;
         }
-        return !MUTATING_CLASSES.computeIfAbsent(block.getClass(), BlockSafety::overridesBoundsUpdate);
+
+        // only vanilla code is known to touch nothing but the rendered block's own bounds
+        boolean vanilla = block.getClass().getName().startsWith("net.minecraft.");
+        return vanilla && CLONEABLE_RENDER_TYPES[type] && BlockCopies.canCopy(block) ? MODE_CLONE : MODE_RENDER_THREAD;
     }
 
     private static boolean overridesBoundsUpdate(Class<?> clazz) {

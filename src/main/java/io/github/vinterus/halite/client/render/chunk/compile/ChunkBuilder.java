@@ -86,7 +86,7 @@ public final class ChunkBuilder {
             }
 
             try {
-                task.run(self.getTessellator());
+                task.run(self);
             } catch (Throwable t) {
                 task.error = t;
             }

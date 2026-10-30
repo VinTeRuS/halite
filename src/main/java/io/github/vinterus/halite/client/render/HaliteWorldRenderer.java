@@ -5,6 +5,7 @@ import io.github.vinterus.halite.client.HaliteStats;
 import io.github.vinterus.halite.client.gl.GlCompat;
 import io.github.vinterus.halite.client.config.HaliteOptions;
 import io.github.vinterus.halite.client.render.chunk.RenderSectionManager;
+import io.github.vinterus.halite.client.render.chunk.compile.BlockCopies;
 import io.github.vinterus.halite.client.render.chunk.compile.ChunkBuilder;
 import io.github.vinterus.halite.client.render.texture.AnimatedSprites;
 import net.minecraft.entity.Entity;
@@ -67,6 +68,7 @@ public class HaliteWorldRenderer {
             return;
         }
         // throw away all GPU state and start over (fancy graphics, texture pack and render distance changes)
+        BlockCopies.invalidateAll();
         this.setWorld(this.world);
     }
 

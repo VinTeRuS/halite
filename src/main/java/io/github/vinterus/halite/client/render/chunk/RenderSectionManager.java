@@ -136,7 +136,7 @@ public class RenderSectionManager {
             }
         }
 
-        boolean[] safeTable = builder != null ? BlockSafety.getSafeTable() : null;
+        byte[] modeTable = builder != null ? BlockSafety.getModeTable() : null;
         int maxInFlight = builder != null ? builder.getThreadCount() * 3 : 0;
 
         for (int i = 0; i < this.rebuildQueue.size(); i++) {
@@ -161,7 +161,7 @@ public class RenderSectionManager {
 
             if (builder != null) {
                 WorldSlice slice = WorldSlice.create(this.world, section.getChunkX(), section.getChunkY(), section.getChunkZ());
-                builder.submit(new ChunkBuildTask(this, section, section.getVersion(), slice, safeTable,
+                builder.submit(new ChunkBuildTask(this, section, section.getVersion(), slice, modeTable,
                         this.world.getBottomY(), this.world.getTopY()));
                 section.setBuilding(true);
                 this.inFlight++;
@@ -226,7 +226,7 @@ public class RenderSectionManager {
             List<BlockEntity> blockEntities = new ArrayList<>();
 
             ChunkSectionCompiler.meshSection(region, minX, minY, minZ, this.world.getBottomY(), this.world.getTopY(),
-                    Tessellator.INSTANCE, this.syncBuilders, this.syncVisGraph, blockEntities, null, null);
+                    Tessellator.INSTANCE, this.syncBuilders, this.syncVisGraph, blockEntities, null, null, null);
 
             section.setBuildResult(this.upload(this.syncBuilders, section), blockEntities, this.syncVisGraph.resolve(),
                     Chunk.hasSkyLight, version);

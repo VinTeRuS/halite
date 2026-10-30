@@ -9,6 +9,7 @@ import net.minecraft.client.render.Tessellator;
 public final class ChunkBuilderThread extends Thread {
     private final Tessellator tessellator;
     private final Object bakedModelRenderer;
+    private final BlockCopies blockCopies = new BlockCopies();
 
     ChunkBuilderThread(Runnable task, String name, Tessellator tessellator, Object bakedModelRenderer) {
         super(task, name);
@@ -16,6 +17,11 @@ public final class ChunkBuilderThread extends Thread {
         this.bakedModelRenderer = bakedModelRenderer;
         this.setDaemon(true);
         this.setPriority(Thread.NORM_PRIORITY - 1);
+    }
+
+    /** This thread's own copies of blocks whose renderers rewrite the block's bounds. */
+    public BlockCopies getBlockCopies() {
+        return this.blockCopies;
     }
 
     public Tessellator getTessellator() {

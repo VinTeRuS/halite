@@ -19,7 +19,7 @@ public final class ChunkBuildTask {
     final RenderSection section;
     final int version;
     final WorldSlice slice;
-    final boolean[] safeTable;
+    final byte[] modeTable;
     final int bottomY, topY;
 
     final ChunkMeshBuilder[] builders = new ChunkMeshBuilder[RenderSection.PASS_COUNT];
@@ -28,19 +28,19 @@ public final class ChunkBuildTask {
     long visibilityData;
     Throwable error;
 
-    public ChunkBuildTask(Object owner, RenderSection section, int version, WorldSlice slice, boolean[] safeTable,
+    public ChunkBuildTask(Object owner, RenderSection section, int version, WorldSlice slice, byte[] modeTable,
                           int bottomY, int topY) {
         this.owner = owner;
         this.section = section;
         this.version = version;
         this.slice = slice;
-        this.safeTable = safeTable;
+        this.modeTable = modeTable;
         this.bottomY = bottomY;
         this.topY = topY;
     }
 
     /** Runs on a chunk builder thread. */
-    void run(Tessellator tessellator) {
+    void run(ChunkBuilderThread thread) {
         for (int i = 0; i < this.builders.length; i++) {
             this.builders[i] = new ChunkMeshBuilder();
         }
@@ -49,7 +49,8 @@ public final class ChunkBuildTask {
         VisGraph visGraph = new VisGraph();
         ChunkSectionCompiler.meshSection(this.slice,
                 this.section.getOriginX(), this.section.getOriginY(), this.section.getOriginZ(), this.bottomY, this.topY,
-                tessellator, this.builders, visGraph, this.blockEntities, this.safeTable, this.deferred);
+                thread.getTessellator(), this.builders, visGraph, this.blockEntities, this.modeTable, thread.getBlockCopies(),
+                this.deferred);
         this.visibilityData = visGraph.resolve();
     }
 

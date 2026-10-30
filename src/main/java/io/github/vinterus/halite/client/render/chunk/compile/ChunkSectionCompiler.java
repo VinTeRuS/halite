@@ -30,12 +30,15 @@ public final class ChunkSectionCompiler {
      * @param builders      one builder per render pass
      * @param visGraph      receives opaque blocks, or null to skip
      * @param blockEntities receives block entities that have a renderer, or null to skip
-     * @param safeTable     when not null, only blocks marked safe are rendered; the others go to {@code deferred}
+     * @param modeTable     when not null (worker builds), the {@link BlockSafety} mode per block id; blocks that must
+     *                      be rendered on the render thread go to {@code deferred}
+     * @param copies        this thread's block copies, for blocks in {@link BlockSafety#MODE_CLONE}
      * @param deferred      receives the section-local index of skipped blocks
      */
     public static void meshSection(BlockView view, int minX, int minY, int minZ, int bottomY, int topY,
                                    Tessellator tessellator, ChunkMeshBuilder[] builders, VisGraph visGraph,
-                                   List<BlockEntity> blockEntities, boolean[] safeTable, IntArrayList deferred) {
+                                   List<BlockEntity> blockEntities, byte[] modeTable, BlockCopies copies,
+                                   IntArrayList deferred) {
         BlockRenderManager blockRenderer = new BlockRenderManager(view);
         TessellatorCapture capture = (TessellatorCapture) tessellator;
 
@@ -65,7 +68,9 @@ public final class ChunkSectionCompiler {
                                 continue;
                             }
 
-                            boolean safe = safeTable == null || (id < safeTable.length && safeTable[id]);
+                            byte mode = modeTable == null ? BlockSafety.MODE_WORKER
+                                    : id < modeTable.length ? modeTable[id] : BlockSafety.MODE_RENDER_THREAD;
+                            boolean safe = mode != BlockSafety.MODE_RENDER_THREAD;
 
                             if (pass == 0) {
                                 collectStatic(view, visGraph, blockEntities, id, x, y, z, minX, minY, minZ);
@@ -81,7 +86,7 @@ public final class ChunkSectionCompiler {
                             }
 
                             if (safe) {
-                                blockRenderer.render(block, x, y, z);
+                                blockRenderer.render(mode == BlockSafety.MODE_CLONE ? copies.get(block, id) : block, x, y, z);
                             }
                         }
                     }
