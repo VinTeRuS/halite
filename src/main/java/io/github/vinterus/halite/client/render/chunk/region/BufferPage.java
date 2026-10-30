@@ -143,7 +143,7 @@ public final class BufferPage {
     }
 
     // Meshes are built into heap buffers: a direct buffer per rebuild is only freed by the GC, and running into the
-    // direct memory limit (small on Pojav) makes the JVM stall in System.gc(). LWJGL wants direct memory, so uploads
+    // direct memory limit (small on Mojo) makes the JVM stall in System.gc(). LWJGL wants direct memory, so uploads
     // go through this one reused buffer. Render thread only.
     private static ByteBuffer stagingBuffer;
 

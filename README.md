@@ -31,7 +31,7 @@ entity list) with the architecture popularised by Sodium:
 - Requires StationAPI. Every block is still meshed through the regular (vanilla/StationAPI) block renderers,
   so modded blocks and StationAPI block models keep working.
 - Only uses OpenGL features available on OpenGL 1.5 and GLES 2 translation layers, so it also runs in
-  **PojavLauncher** (gl4es and similar). If buffer objects misbehave on a driver, turn off **VBOs** in the
+  **MojoLauncher** (gl4es and similar). If buffer objects misbehave on a driver, turn off **VBOs** in the
   settings to fall back to client-side vertex arrays.
 - Mods that replace `WorldRenderer`'s chunk rendering themselves (other renderer/optimisation mods) are not
   compatible.
