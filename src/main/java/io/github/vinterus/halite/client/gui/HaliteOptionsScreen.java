@@ -54,7 +54,7 @@ public class HaliteOptionsScreen extends Screen {
         if (page == PAGE_QUALITY) {
             this.slider(RENDER_DISTANCES, o.renderDistance, v -> o.renderDistance = v,
                     v -> "Render Distance: " + (v == 0 ? "Vanilla" : v + " chunks"),
-                    "How far terrain is drawn, in chunks. Vanilla follows the Render Distance button. Large values cost memory and chunk loading time.");
+                    "How far terrain is drawn, in chunks. Vanilla follows the Render Distance button (or the UniTweaks slider). Large values cost memory and chunk loading time.");
             this.slider(ENTITY_DISTANCES, o.entityRenderDistance, v -> o.entityRenderDistance = v,
                     v -> "Entity Distance: " + (v == 0 ? "Vanilla" : v + " blocks"),
                     "Mobs, animals and dropped items further away than this are not drawn. Vanilla draws them up to about 64 blocks times their size.");

@@ -1,6 +1,7 @@
 package io.github.vinterus.halite.client.config;
 
 import io.github.vinterus.halite.client.HaliteClientMod;
+import io.github.vinterus.halite.client.compat.UniTweaksCompat;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
@@ -106,6 +107,10 @@ public class HaliteOptions {
     public int getEffectiveRenderDistance(int vanillaViewDistance) {
         if (this.renderDistance > 0) {
             return this.renderDistance;
+        }
+        int uniTweaks = UniTweaksCompat.getRenderDistance();
+        if (uniTweaks > 0) {
+            return Math.min(uniTweaks, 32);
         }
         return switch (vanillaViewDistance) {
             // matches vanilla's fog distance of 256 >> viewDistance blocks
