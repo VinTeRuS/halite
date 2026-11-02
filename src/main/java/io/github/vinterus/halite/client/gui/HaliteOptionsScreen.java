@@ -30,6 +30,7 @@ public class HaliteOptionsScreen extends Screen {
 
     private static final int[] RENDER_DISTANCES = {0, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20, 24, 28, 32};
     private static final int[] BUILD_BUDGETS = {1, 2, 3, 4, 6, 8, 12, 16};
+    private static final int[] LIGHT_BUDGETS = {0, 1, 2, 3, 4, 6, 8, 12};
 
     private final Screen parent;
     private final List<Entry> entries = new ArrayList<>();
@@ -72,6 +73,9 @@ public class HaliteOptionsScreen extends Screen {
         } else {
             this.slider(BUILD_BUDGETS, o.chunkBuildBudgetMs, v -> o.chunkBuildBudgetMs = v, v -> "Build Budget: " + v + " ms",
                     "Time per frame the game thread spends on chunk updates. Higher loads chunks faster, lower keeps the frame rate steadier.");
+            this.slider(LIGHT_BUDGETS, o.lightUpdateBudgetMs, v -> o.lightUpdateBudgetMs = v,
+                    v -> "Light Budget: " + (v == 0 ? "Vanilla" : v + " ms"),
+                    "Time per frame spent catching up on lighting. Vanilla stops after 500 updates a frame, which leaves dark patches in new chunks while you travel fast.");
             this.toggle("Async Chunk Builds", o.useAsyncChunkBuilding, v -> {
                 o.useAsyncChunkBuilding = v;
                 this.needsReload = true;

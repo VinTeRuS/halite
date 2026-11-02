@@ -9,6 +9,7 @@
     "core.TessellatorInvoker",
     "core.WorldRendererMixin",
     "features.GameRendererMixin",
+    "features.WorldLightingMixin",
     "features.TextureManagerMixin",
     "features.ParticleManagerMixin",
     "features.InGameHudMixin",
