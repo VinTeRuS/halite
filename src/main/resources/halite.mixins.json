@@ -4,7 +4,7 @@
   "package": "io.github.vinterus.halite.mixin",
   "compatibilityLevel": "JAVA_17",
   "client": [
-    "core.BlockRenderManagerMixin",
+    "core.Vec3dMixin",
     "core.TessellatorMixin",
     "core.TessellatorInvoker",
     "core.WorldRendererMixin",
