@@ -14,7 +14,13 @@
     "features.ParticleManagerMixin",
     "features.InGameHudMixin",
     "features.VideoOptionsScreenMixin",
-    "debug.MinecraftDebugMixin"
+    "debug.MinecraftDebugMixin",
+    "features.BiomeSourceLockMixin",
+    "features.ChunkCacheMixin",
+    "features.ChunkInvoker",
+    "features.ChunkTerrainMixin",
+    "features.MinecraftTerrainMixin",
+    "features.WorldTerrainMixin"
   ],
   "injectors": {
     "defaultRequire": 1

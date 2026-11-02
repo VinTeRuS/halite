@@ -85,6 +85,8 @@ public final class HaliteStats {
         entries.add(new Entry("geometry", "Geometry", String.format("%.1f MB in %.1f MB (%d pages)",
                 meshMegabytes, allocatedMegabytes, pages)));
         entries.add(new Entry("animations", "Animations", animations));
+        io.github.vinterus.halite.world.gen.TerrainPregen pregen = io.github.vinterus.halite.world.gen.TerrainPregen.active();
+        entries.add(new Entry("terrain", "Terrain", pregen != null ? pregen.getDebugString() : "off"));
         entries.add(new Entry("cpu_world", "CPU ms", stageLine(Stage.TERRAIN, Stage.CHUNK_UPDATES, Stage.VISIBILITY)));
         entries.add(new Entry("cpu_other", "CPU ms", stageLine(Stage.ENTITIES, Stage.PARTICLES, Stage.SKY, Stage.CLOUDS)));
         return entries;

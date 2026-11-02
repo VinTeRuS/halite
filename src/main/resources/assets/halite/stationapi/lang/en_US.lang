@@ -7,3 +7,4 @@ text.halite.line.geometry=Geometry
 text.halite.line.animations=Animations
 text.halite.line.cpu_world=CPU ms
 text.halite.line.cpu_other=CPU ms
+text.halite.line.terrain=Terrain

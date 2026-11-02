@@ -5,8 +5,10 @@
   "compatibilityLevel": "JAVA_17",
   "client": [
     "stationapi.BakedModelRendererImplMixin",
+    "stationapi.FlattenedWorldChunkLoaderMixin",
     "stationapi.PalettedContainerAccessor",
-    "stationapi.StationTessellatorImplMixin"
+    "stationapi.StationTessellatorImplMixin",
+    "stationapi.WorldGeneratorImplMixin"
   ],
   "injectors": { "defaultRequire": 1 }
 }

@@ -80,6 +80,8 @@ public class HaliteOptionsScreen extends Screen {
                 o.useAsyncChunkBuilding = v;
                 this.needsReload = true;
             }, "Builds chunk meshes on background threads, which removes most stutter while chunks load. Turn off if a mod's blocks render wrong.");
+            this.toggle("Background Terrain", o.useAsyncTerrainGeneration, v -> o.useAsyncTerrainGeneration = v,
+                    "Generates the terrain of new single player chunks ahead of time on background threads, so worlds load faster. The world comes out the same. Turn off if a world generation mod misbehaves. Applies when a world is loaded.");
             this.toggle("Occlusion Culling", o.useOcclusionCulling, v -> o.useOcclusionCulling = v,
                     "Skips chunks hidden behind terrain, such as caves under your feet. The biggest frame rate win; turn off only to debug missing chunks.");
             this.toggle("Face Culling", o.useFaceCulling, v -> o.useFaceCulling = v,
