@@ -3,6 +3,7 @@ package io.github.vinterus.halite.client.render.chunk.compile;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.material.Material;
+import io.github.vinterus.halite.mixin.compat.stationapi.PalettedContainerAccessor;
 import net.minecraft.world.LightType;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldRegion;
@@ -12,6 +13,7 @@ import net.modificationstation.stationapi.api.block.BlockState;
 import net.modificationstation.stationapi.api.block.States;
 import net.modificationstation.stationapi.impl.world.chunk.ChunkSection;
 import net.modificationstation.stationapi.impl.world.chunk.FlattenedChunk;
+import net.modificationstation.stationapi.impl.world.chunk.SingularPalette;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -192,6 +194,8 @@ public final class WorldSlice extends WorldRegion {
         }
 
         int ly = y & 15;
+        BlockState uniform = uniformState(section);
+        int uniformId = uniform != null ? uniform.getBlock().id : 0;
         for (int z = z0; z < z1; z++) {
             int lz = z & 15;
             int index = this.index(x0, y, z);
@@ -199,8 +203,8 @@ public final class WorldSlice extends WorldRegion {
                 int lx = x & 15;
                 int local = lx << 8 | ly << 4 | lz;
 
-                BlockState state = section.getBlockState(lx, ly, lz);
-                int id = state.getBlock().id;
+                BlockState state = uniform != null ? uniform : section.getBlockState(lx, ly, lz);
+                int id = uniform != null ? uniformId : state.getBlock().id;
                 this.ids[index] = id;
                 this.states[index] = state;
                 this.metas[index] = (byte) section.getMeta(local);
@@ -217,6 +221,15 @@ public final class WorldSlice extends WorldRegion {
                         ? chunk.getBlockEntity(lx, y, lz) : null;
             }
         }
+    }
+
+    /** The only block state of a section whose palette holds a single entry, such as all air; otherwise null. */
+    private static BlockState uniformState(ChunkSection section) {
+        if (section.getBlockStateContainer() instanceof PalettedContainerAccessor container
+                && container.halite$getPalette() instanceof SingularPalette<?> palette) {
+            return (BlockState) palette.get(0);
+        }
+        return null;
     }
 
     private void copyRowLegacy(Chunk chunk, int x0, int x1, int y, int z0, int z1, int ambientDarkness,

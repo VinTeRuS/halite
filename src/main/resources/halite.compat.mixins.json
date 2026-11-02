@@ -5,6 +5,7 @@
   "compatibilityLevel": "JAVA_17",
   "client": [
     "stationapi.BakedModelRendererImplMixin",
+    "stationapi.PalettedContainerAccessor",
     "stationapi.StationTessellatorImplMixin"
   ],
   "injectors": { "defaultRequire": 1 }
