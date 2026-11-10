@@ -30,6 +30,7 @@ public class HaliteOptionsScreen extends Screen {
 
     private static final int[] RENDER_DISTANCES = {0, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20, 24, 28, 32};
     private static final int[] BUILD_BUDGETS = {1, 2, 3, 4, 6, 8, 12, 16};
+    private static final int[] LIGHT_BUDGETS = {0, 1, 2, 3, 4, 6, 8, 12};
 
     private final Screen parent;
     private final List<Entry> entries = new ArrayList<>();
@@ -72,10 +73,15 @@ public class HaliteOptionsScreen extends Screen {
         } else {
             this.slider(BUILD_BUDGETS, o.chunkBuildBudgetMs, v -> o.chunkBuildBudgetMs = v, v -> "Build Budget: " + v + " ms",
                     "Time per frame the game thread spends on chunk updates. Higher loads chunks faster, lower keeps the frame rate steadier.");
+            this.slider(LIGHT_BUDGETS, o.lightUpdateBudgetMs, v -> o.lightUpdateBudgetMs = v,
+                    v -> "Light Budget: " + (v == 0 ? "Vanilla" : v + " ms"),
+                    "Time per frame spent catching up on lighting. Vanilla stops after 500 updates a frame, which leaves dark patches in new chunks while you travel fast.");
             this.toggle("Async Chunk Builds", o.useAsyncChunkBuilding, v -> {
                 o.useAsyncChunkBuilding = v;
                 this.needsReload = true;
             }, "Builds chunk meshes on background threads, which removes most stutter while chunks load. Turn off if a mod's blocks render wrong.");
+            this.toggle("Background Terrain", o.useAsyncTerrainGeneration, v -> o.useAsyncTerrainGeneration = v,
+                    "Generates the terrain of new single player chunks ahead of time on background threads, so worlds load faster. The world comes out the same. Turn off if a world generation mod misbehaves. Applies when a world is loaded.");
             this.toggle("Occlusion Culling", o.useOcclusionCulling, v -> o.useOcclusionCulling = v,
                     "Skips chunks hidden behind terrain, such as caves under your feet. The biggest frame rate win; turn off only to debug missing chunks.");
             this.toggle("Face Culling", o.useFaceCulling, v -> o.useFaceCulling = v,

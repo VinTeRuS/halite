@@ -37,6 +37,12 @@ public class HaliteOptions {
     public int chunkBuilderThreads = 0;
     /** Milliseconds per frame spent rebuilding chunk meshes. */
     public int chunkBuildBudgetMs = 4;
+    /** Milliseconds per frame spent on queued light updates; vanilla stops after 500 updates. */
+    public int lightUpdateBudgetMs = 3;
+    /** Generate the terrain of upcoming single player chunks on background threads. */
+    public boolean useAsyncTerrainGeneration = true;
+    /** Number of terrain generation threads; 0 picks a count from the CPU core count. */
+    public int terrainThreads = 0;
 
     private static Path path() {
         return FabricLoader.getInstance().getConfigDir().resolve("halite.properties");
@@ -63,6 +69,9 @@ public class HaliteOptions {
                 options.useAnimationCulling = getBool(props, "useAnimationCulling", options.useAnimationCulling);
                 options.useVertexBufferObjects = getBool(props, "useVertexBufferObjects", options.useVertexBufferObjects);
                 options.chunkBuildBudgetMs = getInt(props, "chunkBuildBudgetMs", options.chunkBuildBudgetMs, 1, 50);
+                options.lightUpdateBudgetMs = getInt(props, "lightUpdateBudgetMs", options.lightUpdateBudgetMs, 0, 50);
+                options.useAsyncTerrainGeneration = getBool(props, "useAsyncTerrainGeneration", options.useAsyncTerrainGeneration);
+                options.terrainThreads = getInt(props, "terrainThreads", options.terrainThreads, 0, 8);
                 options.useAsyncChunkBuilding = getBool(props, "useAsyncChunkBuilding", options.useAsyncChunkBuilding);
                 options.chunkBuilderThreads = getInt(props, "chunkBuilderThreads", options.chunkBuilderThreads, 0, 16);
             } catch (IOException | RuntimeException e) {
@@ -89,6 +98,9 @@ public class HaliteOptions {
         props.setProperty("useAnimationCulling", Boolean.toString(this.useAnimationCulling));
         props.setProperty("useVertexBufferObjects", Boolean.toString(this.useVertexBufferObjects));
         props.setProperty("chunkBuildBudgetMs", Integer.toString(this.chunkBuildBudgetMs));
+        props.setProperty("lightUpdateBudgetMs", Integer.toString(this.lightUpdateBudgetMs));
+        props.setProperty("useAsyncTerrainGeneration", Boolean.toString(this.useAsyncTerrainGeneration));
+        props.setProperty("terrainThreads", Integer.toString(this.terrainThreads));
         props.setProperty("useAsyncChunkBuilding", Boolean.toString(this.useAsyncChunkBuilding));
         props.setProperty("chunkBuilderThreads", Integer.toString(this.chunkBuilderThreads));
 

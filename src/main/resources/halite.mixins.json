@@ -4,16 +4,23 @@
   "package": "io.github.vinterus.halite.mixin",
   "compatibilityLevel": "JAVA_17",
   "client": [
-    "core.BlockRenderManagerMixin",
+    "core.Vec3dMixin",
     "core.TessellatorMixin",
     "core.TessellatorInvoker",
     "core.WorldRendererMixin",
     "features.GameRendererMixin",
+    "features.WorldLightingMixin",
     "features.TextureManagerMixin",
     "features.ParticleManagerMixin",
     "features.InGameHudMixin",
     "features.VideoOptionsScreenMixin",
-    "debug.MinecraftDebugMixin"
+    "debug.MinecraftDebugMixin",
+    "features.BiomeSourceLockMixin",
+    "features.ChunkCacheMixin",
+    "features.ChunkInvoker",
+    "features.ChunkTerrainMixin",
+    "features.MinecraftTerrainMixin",
+    "features.WorldTerrainMixin"
   ],
   "injectors": {
     "defaultRequire": 1
